@@ -22,7 +22,7 @@ jobs:
   deploy:
     uses: nationalarchives/dr2-github-actions/.github/workflows/lambda_deploy.yml@main
     with:
-      lambda-name: ${{ github.event.inputs.environment }}-dr2-ingest-upsert-archive-folders-lambda
+      lambda-name: ${{ github.event.inputs.environment }}-ingest-upsert-archive-folders-lambda
       deployment-package: dr2-ingest-upsert-archive-folders-lambda.jar
       environment: ${{ github.event.inputs.environment }}
       to-deploy: ${{ github.event.inputs.to-deploy }}
