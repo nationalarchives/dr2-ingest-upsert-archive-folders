@@ -42,10 +42,10 @@ class Lambda extends RequestStreamHandler {
 
     for {
       config <- configIo
-      folderRows <- getFolderRows(folderIdPartitionKeysAndValues, config.archiveFolderTableName)
-      folderRowsSortedByParentPath: List[(String, GetItemsResponse)] = folderRows.sortBy { case (parentPath, _) =>
-        parentPath.length
-      }
+      folderRowsSortedByParentPath <- getFolderRowsSortedByParentPath(
+        folderIdPartitionKeysAndValues,
+        config.archiveFolderTableName
+      )
 
       _ <- checkNumOfParentPathSlashesPerFolderIncrease(folderRowsSortedByParentPath)
       _ <- checkEachParentPathMatchesFolderBeforeIt(folderRowsSortedByParentPath)
@@ -55,7 +55,7 @@ class Lambda extends RequestStreamHandler {
 
       folderIdAndInfo <- {
         val folderIdMappedToFolderInfo: List[IO[(String, FullFolderInfo)]] =
-          folderRowsSortedByParentPath.map { case (_, folderRow) =>
+          folderRowsSortedByParentPath.map { folderRow =>
             val potentialEntitiesWithSourceIdIo: IO[Seq[Entity]] =
               entitiesClient.entitiesByIdentifier(Identifier(sourceId, folderRow.name), secretName)
             verifyOnlyOneEntityReturnedAndGetFullFolderInfo(potentialEntitiesWithSourceIdIo, folderRow)
@@ -63,7 +63,7 @@ class Lambda extends RequestStreamHandler {
         folderIdMappedToFolderInfo.sequence.map(_.toMap)
       }
 
-      folderInfoWithExpectedParentRef = getExpectedParentRefForEachFolder(folderIdAndInfo)
+      folderInfoWithExpectedParentRef <- getExpectedParentRefForEachFolder(folderIdAndInfo)
 
       (folderInfoOfEntitiesThatDoNotExist, folderInfoOfEntitiesThatExist) = folderInfoWithExpectedParentRef.partition(
         _.entity.isEmpty
@@ -86,25 +86,25 @@ class Lambda extends RequestStreamHandler {
     } yield ()
   }.unsafeRunSync()
 
-  private def getFolderRows(
+  private def getFolderRowsSortedByParentPath(
       folderIdPartitionKeysAndValues: List[PartitionKey],
       archiveFolderTableName: String
-  ): IO[List[(String, GetItemsResponse)]] = {
+  ): IO[List[GetItemsResponse]] = {
     val getItemsResponse: IO[List[GetItemsResponse]] =
       dADynamoDBClient.getItems[GetItemsResponse, PartitionKey](
         folderIdPartitionKeysAndValues,
         archiveFolderTableName
       )
 
-    getItemsResponse.map { _.map(folderRow => folderRow.parentPath -> folderRow) }
+    getItemsResponse.map(_.sortBy(folderRow => folderRow.parentPath))
   }
 
   private def checkNumOfParentPathSlashesPerFolderIncrease(
-      folderRowsSortedByParentPath: List[(String, GetItemsResponse)]
+      folderRowsSortedByParentPath: List[GetItemsResponse]
   ): IO[List[Int]] = {
     val numberOfSlashesInParentPathPerFolder: List[Int] =
-      folderRowsSortedByParentPath.map { case (parentPath, _) =>
-        val parentPathSplitBySlash: Array[String] = parentPath.split("/")
+      folderRowsSortedByParentPath.map { folderRow =>
+        val parentPathSplitBySlash: Array[String] = folderRow.parentPath.split("/")
         if (parentPathSplitBySlash.head.isEmpty || parentPathSplitBySlash.isEmpty) 0 else parentPathSplitBySlash.length
       }
 
@@ -118,15 +118,15 @@ class Lambda extends RequestStreamHandler {
   }
 
   private def checkEachParentPathMatchesFolderBeforeIt(
-      folderRowsSortedByParentPath: List[(String, GetItemsResponse)]
+      folderRowsSortedByParentPath: List[GetItemsResponse]
   ): IO[Seq[Unit]] = {
-    val folderRowsSortedByLongestParentPath: List[(String, GetItemsResponse)] = folderRowsSortedByParentPath.reverse
+    val folderRowsSortedByLongestParentPath: List[GetItemsResponse] = folderRowsSortedByParentPath.reverse
 
-    val subfoldersWithPresumedParents: Seq[((String, GetItemsResponse), (String, GetItemsResponse))] =
+    val subfoldersWithPresumedParents: Seq[(GetItemsResponse, GetItemsResponse)] =
       folderRowsSortedByLongestParentPath.zip(folderRowsSortedByLongestParentPath.drop(1))
 
-    subfoldersWithPresumedParents.map { case ((subfolderParentPath, subfolderInfo), (_, presumedParentFolderInfo)) =>
-      val directParentRefOfSubfolder: String = subfolderParentPath.split("/").last
+    subfoldersWithPresumedParents.map { case (subfolderInfo, presumedParentFolderInfo) =>
+      val directParentRefOfSubfolder: String = subfolderInfo.parentPath.split("/").last
 
       if (directParentRefOfSubfolder != presumedParentFolderInfo.id) {
         IO.raiseError {
@@ -153,18 +153,21 @@ class Lambda extends RequestStreamHandler {
       }
     }
 
-  private def getExpectedParentRefForEachFolder(folderIdAndInfo: Map[String, FullFolderInfo]): List[FullFolderInfo] =
-    folderIdAndInfo.map { case (_, fullFolderInfo) =>
-      val directParent = fullFolderInfo.folderRow.parentPath.split("/").last
-      folderIdAndInfo.get(directParent) match {
-        case None => fullFolderInfo // top-level folder doesn't/shouldn't have parent path
-        case Some(fullFolderInfoOfParent) =>
-          val parentEntityExists = fullFolderInfoOfParent.entity.nonEmpty
-          if (parentEntityExists)
-            fullFolderInfo.copy(expectedParentRef = fullFolderInfoOfParent.entity.get.ref.toString)
-          else fullFolderInfo
-      }
-    }.toList
+  private def getExpectedParentRefForEachFolder(
+      folderIdAndInfo: Map[String, FullFolderInfo]
+  ): IO[List[FullFolderInfo]] =
+    IO {
+      folderIdAndInfo.map { case (_, fullFolderInfo) =>
+        val directParent = fullFolderInfo.folderRow.parentPath.split("/").last
+        folderIdAndInfo.get(directParent) match {
+          case None => fullFolderInfo // top-level folder doesn't/shouldn't have parent path
+          case Some(fullFolderInfoOfParent) =>
+            fullFolderInfoOfParent.entity
+              .map(entity => fullFolderInfo.copy(expectedParentRef = entity.ref.toString))
+              .getOrElse(fullFolderInfo)
+        }
+      }.toList
+    }
 
   private def createFolders(
       folderInfoOfEntities: List[FullFolderInfo],
