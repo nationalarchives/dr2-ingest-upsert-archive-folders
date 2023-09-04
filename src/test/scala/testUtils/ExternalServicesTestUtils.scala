@@ -2,7 +2,6 @@ package testUtils
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
-import com.github.tomakehurst.wiremock.WireMockServer
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.any
 import org.mockito.MockitoSugar.{mock, times, verify, when}
@@ -21,9 +20,6 @@ import java.util.UUID
 import scala.collection.immutable.ListMap
 
 class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with BeforeAndAfterAll {
-  val graphQlServerPort = 9001
-
-  val wiremockGraphqlServer = new WireMockServer(graphQlServerPort)
 
   val folderIdsAndRows: ListMap[String, GetItemsResponse] = ListMap(
     "f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176" ->
@@ -85,18 +81,6 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
 
   val defaultEntitiesWithSourceIdReturnValues: List[IO[Seq[Entity]]] =
     List(IO(structuralObjects(0)), IO(structuralObjects(1)), IO(structuralObjects(2)))
-
-  override def beforeAll(): Unit = {
-    wiremockGraphqlServer.start()
-  }
-
-  override def afterAll(): Unit = {
-    wiremockGraphqlServer.stop()
-  }
-
-  override def afterEach(): Unit = {
-    wiremockGraphqlServer.resetAll()
-  }
 
   case class MockLambda(
       getAttributeValuesReturnValue: IO[List[GetItemsResponse]],

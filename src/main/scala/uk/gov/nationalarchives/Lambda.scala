@@ -28,6 +28,7 @@ class Lambda extends RequestStreamHandler {
   private val parentRefNodeName = "ParentRef"
   private val structuralObject = "structural-objects"
   private val securityTagName = "SecurityTag"
+  private val sourceId = "SourceId"
 
   private val configIo: IO[Config] = ConfigSource.default.loadF[IO, Config]()
   private implicit val secretRW: default.ReadWriter[StepFnInput] = default.macroRW[StepFnInput]
@@ -37,11 +38,11 @@ class Lambda extends RequestStreamHandler {
     val stepFnInput = default.read[StepFnInput](rawInput)
 
     val folderIdPartitionKeysAndValues: List[PartitionKey] =
-      stepFnInput.archiveHierarchyFolders.map(id => PartitionKey(id))
+      stepFnInput.archiveHierarchyFolders.map(PartitionKey)
 
     for {
       config <- configIo
-      folderRows <- getFolderRows(folderIdPartitionKeysAndValues, config)
+      folderRows <- getFolderRows(folderIdPartitionKeysAndValues, config.archiveFolderTableName)
       folderRowsSortedByParentPath: List[(String, GetItemsResponse)] = folderRows.sortBy { case (parentPath, _) =>
         parentPath.length
       }
@@ -56,7 +57,7 @@ class Lambda extends RequestStreamHandler {
         val folderIdMappedToFolderInfo: List[IO[(String, FullFolderInfo)]] =
           folderRowsSortedByParentPath.map { case (_, folderRow) =>
             val potentialEntitiesWithSourceIdIo: IO[Seq[Entity]] =
-              entitiesClient.entitiesByIdentifier(Identifier("SourceId", folderRow.name), secretName)
+              entitiesClient.entitiesByIdentifier(Identifier(sourceId, folderRow.name), secretName)
             verifyOnlyOneEntityReturnedAndGetFullFolderInfo(potentialEntitiesWithSourceIdIo, folderRow)
           }
         folderIdMappedToFolderInfo.sequence.map(_.toMap)
@@ -87,12 +88,12 @@ class Lambda extends RequestStreamHandler {
 
   private def getFolderRows(
       folderIdPartitionKeysAndValues: List[PartitionKey],
-      config: Config
+      archiveFolderTableName: String
   ): IO[List[(String, GetItemsResponse)]] = {
     val getItemsResponse: IO[List[GetItemsResponse]] =
       dADynamoDBClient.getItems[GetItemsResponse, PartitionKey](
         folderIdPartitionKeysAndValues,
-        config.archiveFolderTableName
+        archiveFolderTableName
       )
 
     getItemsResponse.map { _.map(folderRow => folderRow.parentPath -> folderRow) }
@@ -176,7 +177,7 @@ class Lambda extends RequestStreamHandler {
       val folderInfo = folderInfoOfEntities.head
 
       val folderName = folderInfo.folderRow.name
-      val identifiersToAdd = List(Identifier("SourceId", folderName), Identifier("Code", folderName))
+      val identifiersToAdd = List(Identifier(sourceId, folderName), Identifier("Code", folderName))
 
       val parentRef = if (folderInfo.expectedParentRef.isEmpty) {
         val parentId = folderInfo.folderRow.parentPath.split("/").last
@@ -193,7 +194,7 @@ class Lambda extends RequestStreamHandler {
       )
       for {
         entityId <- entitiesClient.addEntity(addFolderRequest, secretName)
-        addEntityIdentifierConfirmation <- entitiesClient.addIdentifiersForEntity(
+        _ <- entitiesClient.addIdentifiersForEntity(
           entityId,
           structuralObject,
           identifiersToAdd,

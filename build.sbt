@@ -18,8 +18,7 @@ lazy val root = (project in file(".")).
       preservicaClient,
       pureConfig,
       pureConfigCats,
-      scalaTest % Test,
-      wiremock % Test
+      scalaTest % Test
     )
   )
 (assembly / assemblyJarName) := "dr2-ingest-upsert-archive-folders.jar"
