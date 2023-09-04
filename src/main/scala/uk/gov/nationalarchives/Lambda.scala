@@ -53,16 +53,9 @@ class Lambda extends RequestStreamHandler {
       entitiesClient <- entitiesClientIO
       secretName = config.secretName
 
-      folderIdAndInfo <- {
-        val folderIdMappedToFolderInfo: List[IO[(String, FullFolderInfo)]] =
-          folderRowsSortedByParentPath.map { folderRow =>
-            val potentialEntitiesWithSourceIdIo: IO[Seq[Entity]] =
-              entitiesClient.entitiesByIdentifier(Identifier(sourceId, folderRow.name), secretName)
-            verifyOnlyOneEntityReturnedAndGetFullFolderInfo(potentialEntitiesWithSourceIdIo, folderRow)
-          }
-        folderIdMappedToFolderInfo.sequence.map(_.toMap)
-      }
-
+      potentialEntitiesWithSourceId <- getEntitiesByIdentifier(folderRowsSortedByParentPath, entitiesClient, secretName)
+      folderIdAndInfo <-
+        verifyOnlyOneEntityReturnedAndGetFullFolderInfo(folderRowsSortedByParentPath.zip(potentialEntitiesWithSourceId))
       folderInfoWithExpectedParentRef <- getExpectedParentRefForEachFolder(folderIdAndInfo)
 
       (folderInfoOfEntitiesThatDoNotExist, folderInfoOfEntitiesThatExist) = folderInfoWithExpectedParentRef.partition(
@@ -139,18 +132,28 @@ class Lambda extends RequestStreamHandler {
     }.sequence
   }
 
-  private def verifyOnlyOneEntityReturnedAndGetFullFolderInfo(
-      potentialEntitiesWithSourceId: IO[Seq[Entity]],
-      folderRow: GetItemsResponse
-  ): IO[(String, FullFolderInfo)] =
-    potentialEntitiesWithSourceId.map { potentialEntitiesWithSourceId =>
-      if (potentialEntitiesWithSourceId.length > 1) {
-        throw new Exception(s"There is more than 1 entity with the same SourceId as ${folderRow.id}")
-      } else {
-        val potentialEntity = potentialEntitiesWithSourceId.headOption
+  private def getEntitiesByIdentifier(
+      folderRowsSortedByParentPath: List[GetItemsResponse],
+      entitiesClient: EntityClient[IO, Fs2Streams[IO]],
+      secretName: String
+  ): IO[List[Seq[Entity]]] =
+    folderRowsSortedByParentPath.map { folderRow =>
+      entitiesClient.entitiesByIdentifier(Identifier(sourceId, folderRow.name), secretName)
+    }.sequence
 
-        folderRow.id -> FullFolderInfo(folderRow, potentialEntity)
-      }
+  private def verifyOnlyOneEntityReturnedAndGetFullFolderInfo(
+      potentialEntitiesWithSourceId: List[(GetItemsResponse, Seq[Entity])]
+  ): IO[Map[String, FullFolderInfo]] =
+    IO {
+      potentialEntitiesWithSourceId.map { case (folderRow, potentialEntitiesWithSourceId) =>
+        if (potentialEntitiesWithSourceId.length > 1) {
+          throw new Exception(s"There is more than 1 entity with the same SourceId as ${folderRow.id}")
+        } else {
+          val potentialEntity = potentialEntitiesWithSourceId.headOption
+
+          folderRow.id -> FullFolderInfo(folderRow, potentialEntity)
+        }
+      }.toMap
     }
 
   private def getExpectedParentRefForEachFolder(
