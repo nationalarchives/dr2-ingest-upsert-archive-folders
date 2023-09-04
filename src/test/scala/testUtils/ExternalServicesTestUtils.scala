@@ -11,7 +11,7 @@ import org.scalatest.matchers.should.Matchers._
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scanamo.DynamoFormat
 import sttp.capabilities.fs2.Fs2Streams
-import uk.gov.nationalarchives.Lambda.{GetItemsResponse, PrimaryKey}
+import uk.gov.nationalarchives.Lambda.{GetItemsResponse, PartitionKey}
 import uk.gov.nationalarchives.dp.client.Entities.{Entity, Identifier}
 import uk.gov.nationalarchives.dp.client.EntityClient
 import uk.gov.nationalarchives.dp.client.EntityClient.{AddEntityRequest, UpdateEntityRequest}
@@ -123,7 +123,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
 
     val entityCaptor: ArgumentCaptor[Entity] = ArgumentCaptor.forClass(classOf[Entity])
 
-    def getPrimaryKeysCaptor: ArgumentCaptor[List[PrimaryKey]] = ArgumentCaptor.forClass(classOf[List[PrimaryKey]])
+    def getPartitionKeysCaptor: ArgumentCaptor[List[PartitionKey]] = ArgumentCaptor.forClass(classOf[List[PartitionKey]])
     def getTableNameCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])
 
     val mockEntityClient: EntityClient[IO, Fs2Streams[IO]] = mock[EntityClient[IO, Fs2Streams[IO]]]
@@ -131,9 +131,9 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
 
     override val dADynamoDBClient: DADynamoDBClient[IO] = {
       when(
-        mockDynamoDBClient.getItems[GetItemsResponse, PrimaryKey](any[List[PrimaryKey]], any[String])(
+        mockDynamoDBClient.getItems[GetItemsResponse, PartitionKey](any[List[PartitionKey]], any[String])(
           any[DynamoFormat[GetItemsResponse]],
-          any[DynamoFormat[PrimaryKey]]
+          any[DynamoFormat[PartitionKey]]
         )
       ).thenReturn(
         getAttributeValuesReturnValue
@@ -172,14 +172,14 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
         numOfAddIdentifierRequests: Int = 0,
         updateEntityRequests: List[UpdateEntityRequest] = Nil
     ): Unit = {
-      val attributesValuesCaptor = getPrimaryKeysCaptor
+      val attributesValuesCaptor = getPartitionKeysCaptor
       val tableNameCaptor = getTableNameCaptor
-      verify(mockDynamoDBClient, times(1)).getItems[GetItemsResponse, PrimaryKey](
+      verify(mockDynamoDBClient, times(1)).getItems[GetItemsResponse, PartitionKey](
         attributesValuesCaptor.capture(),
         tableNameCaptor.capture()
-      )(any[DynamoFormat[GetItemsResponse]], any[DynamoFormat[PrimaryKey]])
+      )(any[DynamoFormat[GetItemsResponse]], any[DynamoFormat[PartitionKey]])
       attributesValuesCaptor.getValue.toArray.toList should be(
-        folderIdsAndRows.map { case (ids, _) => PrimaryKey(ids) }
+        folderIdsAndRows.map { case (ids, _) => PartitionKey(ids) }
       )
 
       val entitiesByIdentifierIdentifierToGetCaptor = getIdentifierToGetCaptor

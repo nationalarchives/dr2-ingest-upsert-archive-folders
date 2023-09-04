@@ -9,7 +9,7 @@ import pureconfig._
 import pureconfig.generic.auto._
 import pureconfig.module.catseffect.syntax._
 import sttp.capabilities.fs2.Fs2Streams
-import uk.gov.nationalarchives.Lambda.{Config, FullFolderInfo, GetItemsResponse, PrimaryKey, StepFnInput}
+import uk.gov.nationalarchives.Lambda.{Config, FullFolderInfo, GetItemsResponse, PartitionKey, StepFnInput}
 import uk.gov.nationalarchives.dp.client.Entities.{Entity, Identifier}
 import uk.gov.nationalarchives.dp.client.EntityClient
 import uk.gov.nationalarchives.dp.client.EntityClient.{AddEntityRequest, Closed, Open, SecurityTag, UpdateEntityRequest}
@@ -36,12 +36,12 @@ class Lambda extends RequestStreamHandler {
     val rawInput: String = Source.fromInputStream(input).mkString
     val stepFnInput = default.read[StepFnInput](rawInput)
 
-    val folderIdPrimaryKeysAndValues: List[PrimaryKey] =
-      stepFnInput.archiveHierarchyFolders.map(id => PrimaryKey(id))
+    val folderIdPartitionKeysAndValues: List[PartitionKey] =
+      stepFnInput.archiveHierarchyFolders.map(id => PartitionKey(id))
 
     for {
       config <- configIo
-      folderRows <- getFolderRows(folderIdPrimaryKeysAndValues, config)
+      folderRows <- getFolderRows(folderIdPartitionKeysAndValues, config)
       folderRowsSortedByParentPath: List[(String, GetItemsResponse)] = folderRows.sortBy { case (parentPath, _) =>
         parentPath.length
       }
@@ -86,12 +86,12 @@ class Lambda extends RequestStreamHandler {
   }.unsafeRunSync()
 
   private def getFolderRows(
-      folderIdPrimaryKeysAndValues: List[PrimaryKey],
+      folderIdPartitionKeysAndValues: List[PartitionKey],
       config: Config
   ): IO[List[(String, GetItemsResponse)]] = {
     val getItemsResponse: IO[List[GetItemsResponse]] =
-      dADynamoDBClient.getItems[GetItemsResponse, PrimaryKey](
-        folderIdPrimaryKeysAndValues,
+      dADynamoDBClient.getItems[GetItemsResponse, PartitionKey](
+        folderIdPartitionKeysAndValues,
         config.archiveFolderTableName
       )
 
@@ -281,7 +281,7 @@ class Lambda extends RequestStreamHandler {
 }
 
 object Lambda extends App {
-  case class PrimaryKey(id: String) {
+  case class PartitionKey(id: String) {
     UUID.fromString(id)
   }
   case class GetItemsResponse(
