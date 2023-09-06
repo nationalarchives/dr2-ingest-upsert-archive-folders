@@ -6,6 +6,8 @@ A Lambda that retrieves folders from a DB and creates/updates Entities based on 
 
 ## Environment Variables
 
-| Name | Description |
-|------|-------------|
-|      |             |
+| Name                      | Description                                    |
+|---------------------------|------------------------------------------------|
+| PRESERVICA_API_URL        | The Preservica API  url                        |
+| PRESERVICA_SECRET_NAME    | The secret used to call the Preservica API     |
+| ARCHIVE_FOLDER_TABLE_NAME | The name of the table to get folders from      |
