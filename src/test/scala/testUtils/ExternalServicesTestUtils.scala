@@ -13,7 +13,7 @@ import sttp.capabilities.fs2.Fs2Streams
 import uk.gov.nationalarchives.Lambda.{GetItemsResponse, PartitionKey}
 import uk.gov.nationalarchives.dp.client.Entities.{Entity, Identifier}
 import uk.gov.nationalarchives.dp.client.EntityClient
-import uk.gov.nationalarchives.dp.client.EntityClient.{AddEntityRequest, UpdateEntityRequest}
+import uk.gov.nationalarchives.dp.client.EntityClient.{AddEntityRequest, StructuralObject, UpdateEntityRequest}
 import uk.gov.nationalarchives.{DADynamoDBClient, Lambda}
 
 import java.util.UUID
@@ -54,7 +54,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
         Some("mock title_1"),
         Some("mock description_1"),
         deleted = false,
-        Some("structural-objects")
+        Some(StructuralObject.entityPath)
       )
     ),
     1 -> Seq(
@@ -64,7 +64,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
         Some("mock title_1_1"),
         Some("mock description_1_1"),
         deleted = false,
-        Some("structural-objects")
+        Some(StructuralObject.entityPath)
       )
     ),
     2 -> Seq(
@@ -74,7 +74,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
         Some("mock title_1_1_1"),
         Some("mock description_1_1_1"),
         deleted = false,
-        Some("structural-objects")
+        Some(StructuralObject.entityPath)
       )
     )
   )
@@ -99,7 +99,8 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
     def getEntitiesSecretNameCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])
     def getAddFolderRequestCaptor: ArgumentCaptor[AddEntityRequest] = ArgumentCaptor.forClass(classOf[AddEntityRequest])
     def getRefCaptor: ArgumentCaptor[UUID] = ArgumentCaptor.forClass(classOf[UUID])
-    def structuralObjectCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])
+    def structuralObjectCaptor: ArgumentCaptor[StructuralObject.type] =
+      ArgumentCaptor.forClass(classOf[StructuralObject.type])
     def identifiersToAddCaptor: ArgumentCaptor[List[Identifier]] = ArgumentCaptor.forClass(classOf[List[Identifier]])
     def childNodesCaptor: ArgumentCaptor[List[String]] = ArgumentCaptor.forClass(classOf[List[String]])
     def getUpdateFolderRequestCaptor: ArgumentCaptor[UpdateEntityRequest] =
@@ -136,9 +137,16 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
         )
       when(mockEntityClient.addEntity(any[AddEntityRequest], any[String]))
         .thenReturn(addEntityReturnValue)
-      when(mockEntityClient.addIdentifiersForEntity(any[UUID], any[String], any[List[Identifier]], any[String]))
+      when(
+        mockEntityClient.addIdentifiersForEntity(
+          any[UUID],
+          any[StructuralObject.type],
+          any[List[Identifier]],
+          any[String]
+        )
+      )
         .thenReturn(addIdentifierReturnValue)
-      when(mockEntityClient.nodesFromEntity(any[UUID], any[String], any[List[String]], any[String]))
+      when(mockEntityClient.nodesFromEntity(any[UUID], any[StructuralObject.type], any[List[String]], any[String]))
         .thenReturn(
           getParentFolderRefAndSecurityTagReturnValue.head,
           getParentFolderRefAndSecurityTagReturnValue(1),
@@ -221,7 +229,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
         )
 
         addIdentifiersStructuralObjectCaptor.getAllValues.toArray.toList should be(
-          List.fill(numOfAddIdentifierRequests)("structural-objects")
+          List.fill(numOfAddIdentifierRequests)(StructuralObject)
         )
 
         addIdentifiersIdentifiersToAddCaptor.getAllValues.toArray.toList should be(
@@ -255,7 +263,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
         nodesFromEntityRefCaptor.getAllValues.toArray.toList should be(refsOfFoldersThatExistInPreservica)
 
         nodesFromEntityStructuralObjectCaptor.getAllValues.toArray.toList should be(
-          List.fill(numOfNodesFromEntityInvocations)("structural-objects")
+          List.fill(numOfNodesFromEntityInvocations)(StructuralObject)
         )
 
         nodesFromEntityChildNodesToAddCaptor.getAllValues.toArray.toList should be(

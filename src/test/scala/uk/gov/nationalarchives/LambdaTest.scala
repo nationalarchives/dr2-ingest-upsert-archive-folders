@@ -3,7 +3,7 @@ package uk.gov.nationalarchives
 import cats.effect.IO
 import com.amazonaws.services.lambda.runtime.Context
 import org.mockito.MockitoSugar
-import uk.gov.nationalarchives.dp.client.EntityClient.{AddEntityRequest, Open, UpdateEntityRequest}
+import uk.gov.nationalarchives.dp.client.EntityClient.{AddEntityRequest, Open, StructuralObject, UpdateEntityRequest}
 
 import java.util.UUID
 import scala.collection.immutable.ListMap
@@ -58,7 +58,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             None,
             Some("mock title_1_1_1"),
             Some("mock description_1_1_1"),
-            "structural-objects",
+            StructuralObject,
             Open,
             Some(UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"))
           )
@@ -89,7 +89,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             None,
             Some("mock title_1_1"),
             Some("mock description_1_1"),
-            "structural-objects",
+            StructuralObject,
             Open,
             Some(UUID.fromString("d7879799-a7de-4aa6-8c7b-afced66a6c50"))
           ),
@@ -97,7 +97,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             None,
             Some("mock title_1_1_1"),
             Some("mock description_1_1_1"),
-            "structural-objects",
+            StructuralObject,
             Open,
             Some(UUID.fromString("9dfc40be-5f44-4fa1-9c25-fbe03dd3f539"))
           )
@@ -130,7 +130,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             None,
             Some("mock title_1_1_1"),
             Some("mock description_1_1_1"),
-            "structural-objects",
+            StructuralObject,
             Open,
             Some(UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"))
           )
@@ -141,7 +141,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             UUID.fromString("d7879799-a7de-4aa6-8c7b-afced66a6c50"),
             Some("mock title_1"),
             None,
-            "structural-objects",
+            StructuralObject,
             Open,
             None
           )
@@ -179,7 +179,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             UUID.fromString("d7879799-a7de-4aa6-8c7b-afced66a6c50"),
             Some("mock title_1"),
             None,
-            "structural-objects",
+            StructuralObject,
             Open,
             None
           ),
@@ -187,7 +187,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"),
             None,
             Some("mock description_1_1"),
-            "structural-objects",
+            StructuralObject,
             Open,
             None
           ),
@@ -195,7 +195,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             UUID.fromString("9dfc40be-5f44-4fa1-9c25-fbe03dd3f539"),
             Some("mock title_1_1_1"),
             Some("mock description_1_1_1"),
-            "structural-objects",
+            StructuralObject,
             Open,
             None
           )
@@ -314,7 +314,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
                 Some("mock title_1"),
                 Some("mock description_1"),
                 deleted = false,
-                Some("structural-objects")
+                Some(StructuralObject.entityPath)
               ),
               Entity(
                 Some("SO"),
@@ -322,7 +322,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
                 Some("mock title_2"),
                 Some("Another SO with the same SourceId description_1"),
                 deleted = false,
-                Some("structural-objects")
+                Some(StructuralObject.entityPath)
               )
             )
           ),
@@ -367,7 +367,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             None,
             Some("mock title_1_1_1"),
             Some("mock description_1_1_1"),
-            "structural-objects",
+            StructuralObject,
             Open,
             Some(UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"))
           )
@@ -400,7 +400,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             None,
             Some("mock title_1_1_1"),
             Some("mock description_1_1_1"),
-            "structural-objects",
+            StructuralObject,
             Open,
             Some(UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"))
           )
@@ -524,7 +524,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             UUID.fromString("d7879799-a7de-4aa6-8c7b-afced66a6c50"),
             Some("mock title_1"),
             None,
-            "structural-objects",
+            StructuralObject,
             Open,
             None
           )

@@ -12,7 +12,14 @@ import sttp.capabilities.fs2.Fs2Streams
 import uk.gov.nationalarchives.Lambda.{Config, FullFolderInfo, GetItemsResponse, PartitionKey, StepFnInput}
 import uk.gov.nationalarchives.dp.client.Entities.{Entity, Identifier}
 import uk.gov.nationalarchives.dp.client.EntityClient
-import uk.gov.nationalarchives.dp.client.EntityClient.{AddEntityRequest, Closed, Open, SecurityTag, UpdateEntityRequest}
+import uk.gov.nationalarchives.dp.client.EntityClient.{
+  AddEntityRequest,
+  Closed,
+  Open,
+  SecurityTag,
+  StructuralObject,
+  UpdateEntityRequest
+}
 import uk.gov.nationalarchives.dp.client.fs2.Fs2Client
 import upickle.default
 
@@ -26,7 +33,7 @@ class Lambda extends RequestStreamHandler {
   }
   val dADynamoDBClient: DADynamoDBClient[IO] = DADynamoDBClient[IO]()
   private val parentRefNodeName = "ParentRef"
-  private val structuralObject = "structural-objects"
+  private val structuralObject = StructuralObject
   private val securityTagName = "SecurityTag"
   private val sourceId = "SourceId"
 
