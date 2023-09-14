@@ -14,6 +14,7 @@ import uk.gov.nationalarchives.Lambda.GetItemsResponse
 import uk.gov.nationalarchives.dp.client.Entities.Entity
 
 import java.io.{ByteArrayInputStream, OutputStream}
+import scala.jdk.CollectionConverters.ListHasAsScala
 
 class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
   private val mockOutputStream = mock[OutputStream]
@@ -201,6 +202,48 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
           )
         )
       )
+    }
+
+  "handleRequest" should "send a slack message for each of the 3 folders' changes (title, description, both) if each folder's " +
+    "title/description is different from what's DDB" in {
+
+      val entityWithAnOldTitle = IO(structuralObjects(0).map(_.copy(title = Some("mock title_old_1"))))
+      val entityWithAnOldDescription =
+        IO(structuralObjects(1).map(_.copy(description = Some("mock description_old_1_1"))))
+      val entityWithAnOldTitleAndDescription = IO {
+        structuralObjects(2).map(
+          _.copy(title = Some("mock title_old_1_1_1"), description = Some("mock description_old_1_1_1"))
+        )
+      }
+
+      val mockLambda =
+        MockLambda(
+          convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
+          entitiesWithSourceIdReturnValue =
+            List(entityWithAnOldTitle, entityWithAnOldDescription, entityWithAnOldTitleAndDescription)
+        )
+
+      mockLambda.handleRequest(mockInputStream, mockOutputStream, mockContext)
+
+      val sentMessages = mockLambda.eventBridgeMessageCaptors.getAllValues.asScala.map(_.slackMessage)
+
+      sentMessages.length should equal(3)
+      val messageOne = sentMessages.head
+      val messageTwo = sentMessages.tail.head
+      val messageThree = sentMessages.last
+
+      val expectedMessageOne = ":preservica: Entity d7879799-a7de-4aa6-8c7b-afced66a6c50 has been updated\n" +
+        "*Old title*: mock title_old_1\n*New title*: mock title_1\n*Old description*: mock description_1\n*New description*: \n"
+
+      val expectedMessageTwo = ":preservica: Entity a2d39ea3-6216-4f93-b078-62c7896b174c has been updated\n" +
+        "*Old title*: mock title_1_1\n*New title*: \n*Old description*: mock description_old_1_1\n*New description*: mock description_1_1\n"
+
+      val expectedMessageThree = ":preservica: Entity 9dfc40be-5f44-4fa1-9c25-fbe03dd3f539 has been updated\n" +
+        "*Old title*: mock title_old_1_1_1\n*New title*: mock title_1_1_1\n*Old description*: mock description_old_1_1_1\n*New description*: mock description_1_1_1\n"
+
+      messageOne should equal(expectedMessageOne)
+      messageTwo should equal(expectedMessageTwo)
+      messageThree should equal(expectedMessageThree)
     }
 
   "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, " +

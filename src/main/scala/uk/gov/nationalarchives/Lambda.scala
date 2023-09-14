@@ -5,11 +5,20 @@ import cats.effect.unsafe.implicits.global
 import cats.implicits._
 import com.amazonaws.services.lambda.runtime.{Context, RequestStreamHandler}
 import org.scanamo.generic.auto.genericDerivedFormat
+import org.typelevel.log4cats.slf4j.Slf4jLogger
 import pureconfig._
 import pureconfig.generic.auto._
 import pureconfig.module.catseffect.syntax._
 import sttp.capabilities.fs2.Fs2Streams
-import uk.gov.nationalarchives.Lambda.{Config, FullFolderInfo, GetItemsResponse, PartitionKey, StepFnInput}
+import uk.gov.nationalarchives.DAEventBridgeClient._
+import uk.gov.nationalarchives.Lambda.{
+  Config,
+  EntityWithUpdateEntityRequest,
+  FullFolderInfo,
+  GetItemsResponse,
+  PartitionKey,
+  StepFnInput
+}
 import uk.gov.nationalarchives.dp.client.Entities.{Entity, Identifier}
 import uk.gov.nationalarchives.dp.client.EntityClient
 import uk.gov.nationalarchives.dp.client.EntityClient.{
@@ -28,6 +37,8 @@ import java.util.UUID
 import scala.io.Source
 
 class Lambda extends RequestStreamHandler {
+  implicit val detailType: DetailType = "DR2DevMessage".toDetailType
+  implicit val eventBridgeClient: DAEventBridgeClient[IO] = DAEventBridgeClient[IO]()
   lazy val entitiesClientIO: IO[EntityClient[IO, Fs2Streams[IO]]] = configIo.flatMap { config =>
     Fs2Client.entityClient(config.apiUrl)
   }
@@ -49,6 +60,7 @@ class Lambda extends RequestStreamHandler {
 
     for {
       config <- configIo
+      logger <- Slf4jLogger.create[IO]
       folderRowsSortedByParentPath <- getFolderRowsSortedByParentPath(
         folderIdPartitionKeysAndValues,
         config.archiveFolderTableName
@@ -80,11 +92,26 @@ class Lambda extends RequestStreamHandler {
       folderUpdateRequests = findOnlyFoldersThatNeedUpdatingAndCreateRequests(
         folderInfoOfEntitiesThatExistWithSecurityTags
       )
-      _ <- folderUpdateRequests
-        .map(folderUpdateRequest => entitiesClient.updateEntity(folderUpdateRequest, secretName))
-        .sequence
+      _ <- folderUpdateRequests.map { folderUpdateRequest =>
+        val message = generateSlackMessage(folderUpdateRequest)
+        for {
+          _ <- entitiesClient.updateEntity(folderUpdateRequest.updateEntityRequest, secretName)
+          _ <- logger.sendToSlack(message)
+        } yield ()
+      }.sequence
     } yield ()
   }.unsafeRunSync()
+
+  private def generateSlackMessage(folderUpdateRequest: EntityWithUpdateEntityRequest): String = {
+    val entity = folderUpdateRequest.entity
+    val updateEntityRequest = folderUpdateRequest.updateEntityRequest
+    s""":preservica: Entity ${entity.ref} has been updated
+         |*Old title*: ${entity.title.getOrElse("")}
+         |*New title*: ${updateEntityRequest.titleToChange.getOrElse("")}
+         |*Old description*: ${entity.description.getOrElse("")}
+         |*New description*: ${updateEntityRequest.descriptionToChange.getOrElse("")}
+         |""".stripMargin
+  }
 
   private def getFolderRowsSortedByParentPath(
       folderIdPartitionKeysAndValues: List[PartitionKey],
@@ -270,7 +297,7 @@ class Lambda extends RequestStreamHandler {
 
   private def findOnlyFoldersThatNeedUpdatingAndCreateRequests(
       folderInfoOfEntitiesThatExist: List[FullFolderInfo]
-  ): List[UpdateEntityRequest] =
+  ): List[EntityWithUpdateEntityRequest] =
     folderInfoOfEntitiesThatExist.flatMap { folderInfo =>
       val folderRow = folderInfo.folderRow
       val entity = folderInfo.entity.get
@@ -288,9 +315,12 @@ class Lambda extends RequestStreamHandler {
           potentiallyUpdatedTitleRequest.copy(descriptionToChange = folderRow.description)
         else potentiallyUpdatedTitleRequest
 
-      if (potentiallyUpdatedTitleOrDescriptionRequest != updateEntityRequestWithNoUpdates)
-        Some(potentiallyUpdatedTitleOrDescriptionRequest)
-      else None
+      val updateEntityRequest =
+        if (potentiallyUpdatedTitleOrDescriptionRequest != updateEntityRequestWithNoUpdates)
+          Some(potentiallyUpdatedTitleOrDescriptionRequest)
+        else None
+
+      updateEntityRequest.map(EntityWithUpdateEntityRequest(entity, _))
     }
 }
 
@@ -322,4 +352,5 @@ object Lambda extends App {
       expectedParentRef: String = "",
       securityTag: Option[SecurityTag] = None
   )
+  private case class EntityWithUpdateEntityRequest(entity: Entity, updateEntityRequest: UpdateEntityRequest)
 }
