@@ -12,7 +12,6 @@ import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scanamo.DynamoFormat
 import software.amazon.awssdk.services.eventbridge.model.PutEventsResponse
 import sttp.capabilities.fs2.Fs2Streams
-import uk.gov.nationalarchives.DAEventBridgeClient.Detail
 import uk.gov.nationalarchives.Lambda.{GetItemsResponse, PartitionKey}
 import uk.gov.nationalarchives.dp.client.Entities.{Entity, Identifier}
 import uk.gov.nationalarchives.dp.client.EntityClient
@@ -106,7 +105,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
         eventBridgeMessageCaptors.capture()
       )(any[Encoder[Detail]])
     ).thenReturn(IO(PutEventsResponse.builder.build))
-    override implicit val eventBridgeClient: DAEventBridgeClient[IO] = testEventBridgeClient
+    override lazy val eventBridgeClient: DAEventBridgeClient[IO] = testEventBridgeClient
     val apiUrlCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])
     def getIdentifierToGetCaptor: ArgumentCaptor[Identifier] = ArgumentCaptor.forClass(classOf[Identifier])
     def getEntitiesSecretNameCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])

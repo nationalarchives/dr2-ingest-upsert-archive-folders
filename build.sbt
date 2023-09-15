@@ -10,7 +10,6 @@ lazy val root = (project in file(".")).
     libraryDependencies ++= Seq(
       awsDynamoDbClient,
       awsEventBridgeClient,
-      log4Cats,
       log4jSlf4j,
       log4jCore,
       log4jTemplateJson,

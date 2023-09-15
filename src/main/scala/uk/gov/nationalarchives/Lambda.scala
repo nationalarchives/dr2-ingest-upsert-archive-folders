@@ -5,12 +5,12 @@ import cats.effect.unsafe.implicits.global
 import cats.implicits._
 import com.amazonaws.services.lambda.runtime.{Context, RequestStreamHandler}
 import org.scanamo.generic.auto.genericDerivedFormat
-import org.typelevel.log4cats.slf4j.Slf4jLogger
 import pureconfig._
 import pureconfig.generic.auto._
 import pureconfig.module.catseffect.syntax._
+import software.amazon.awssdk.services.eventbridge.model.PutEventsResponse
 import sttp.capabilities.fs2.Fs2Streams
-import uk.gov.nationalarchives.DAEventBridgeClient._
+import io.circe.generic.auto._
 import uk.gov.nationalarchives.Lambda.{
   Config,
   EntityWithUpdateEntityRequest,
@@ -37,8 +37,8 @@ import java.util.UUID
 import scala.io.Source
 
 class Lambda extends RequestStreamHandler {
-  implicit val detailType: DetailType = "DR2DevMessage".toDetailType
-  implicit val eventBridgeClient: DAEventBridgeClient[IO] = DAEventBridgeClient[IO]()
+  lazy val eventBridgeClient: DAEventBridgeClient[IO] = DAEventBridgeClient[IO]()
+
   lazy val entitiesClientIO: IO[EntityClient[IO, Fs2Streams[IO]]] = configIo.flatMap { config =>
     Fs2Client.entityClient(config.apiUrl)
   }
@@ -50,6 +50,10 @@ class Lambda extends RequestStreamHandler {
 
   private val configIo: IO[Config] = ConfigSource.default.loadF[IO, Config]()
   private implicit val secretRW: default.ReadWriter[StepFnInput] = default.macroRW[StepFnInput]
+  case class Detail(slackMessage: String)
+
+  private def sendToSlack(slackMessage: String): IO[PutEventsResponse] =
+    eventBridgeClient.publishEventToEventBridge(getClass.getName, "DR2DevMessage", Detail(slackMessage))
 
   override def handleRequest(input: InputStream, output: OutputStream, context: Context): Unit = {
     val rawInput: String = Source.fromInputStream(input).mkString
@@ -60,7 +64,6 @@ class Lambda extends RequestStreamHandler {
 
     for {
       config <- configIo
-      logger <- Slf4jLogger.create[IO]
       folderRowsSortedByParentPath <- getFolderRowsSortedByParentPath(
         folderIdPartitionKeysAndValues,
         config.archiveFolderTableName
@@ -96,7 +99,7 @@ class Lambda extends RequestStreamHandler {
         val message = generateSlackMessage(folderUpdateRequest)
         for {
           _ <- entitiesClient.updateEntity(folderUpdateRequest.updateEntityRequest, secretName)
-          _ <- logger.sendToSlack(message)
+          _ <- sendToSlack(message)
         } yield ()
       }.sequence
     } yield ()
