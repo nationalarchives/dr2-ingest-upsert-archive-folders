@@ -1,4 +1,4 @@
-package testUtils
+package uk.gov.nationalarchives.testUtils
 
 import cats.effect.IO
 import cats.effect.unsafe.implicits.global
@@ -12,12 +12,13 @@ import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scanamo.DynamoFormat
 import software.amazon.awssdk.services.eventbridge.model.PutEventsResponse
 import sttp.capabilities.fs2.Fs2Streams
-import uk.gov.nationalarchives.Lambda.{GetItemsResponse, PartitionKey}
+import uk.gov.nationalarchives.Lambda.{EntityWithUpdateEntityRequest, GetItemsResponse, PartitionKey}
 import uk.gov.nationalarchives.dp.client.Entities.{Entity, Identifier}
 import uk.gov.nationalarchives.dp.client.EntityClient
 import uk.gov.nationalarchives.dp.client.EntityClient.{AddEntityRequest, StructuralObject, UpdateEntityRequest}
 import uk.gov.nationalarchives.{DADynamoDBClient, DAEventBridgeClient, Lambda}
 
+import scala.jdk.CollectionConverters._
 import java.util.UUID
 import scala.collection.immutable.ListMap
 
@@ -175,7 +176,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
         numOfNodesFromEntityInvocations: Int,
         addEntityRequests: List[AddEntityRequest] = Nil,
         numOfAddIdentifierRequests: Int = 0,
-        updateEntityRequests: List[UpdateEntityRequest] = Nil
+        updateEntityRequests: List[EntityWithUpdateEntityRequest] = Nil
     ): Unit = {
       val attributesValuesCaptor = getPartitionKeysCaptor
       val tableNameCaptor = getTableNameCaptor
@@ -297,13 +298,31 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
       )
 
       if (numOfUpdateEntityInvocations > 0) {
-        updateEntityUpdateFolderRequestCaptor.getAllValues.toArray.toList should be(updateEntityRequests)
+        updateEntityUpdateFolderRequestCaptor.getAllValues.toArray.toList should be(
+          updateEntityRequests.map(_.updateEntityRequest)
+        )
 
         updateEntitySecretNameCaptor.getAllValues.toArray.toList should be(
           List.fill(numOfUpdateEntityInvocations)("mockSecretName")
         )
       }
 
+      val sentMessages = eventBridgeMessageCaptors.getAllValues.asScala.map(_.slackMessage)
+
+      if (updateEntityReturnValues.attempt.unsafeRunSync().isRight) {
+        sentMessages.length should equal(updateEntityRequests.size)
+        updateEntityRequests.foreach { entityAndUpdateRequest =>
+          val updateRequest = entityAndUpdateRequest.updateEntityRequest
+          val entity = entityAndUpdateRequest.entity
+          val oldTitle = entity.title.getOrElse("")
+          val newTitle = updateRequest.titleToChange.getOrElse("")
+          val oldDescription = entity.description.getOrElse("")
+          val newDescription = updateRequest.descriptionToChange.getOrElse("")
+          val expectedMessage = s":preservica: Entity ${updateRequest.ref} has been updated\n" +
+            s"*Old title*: $oldTitle\n*New title*: $newTitle\n*Old description*: $oldDescription\n*New description*: $newDescription\n"
+          sentMessages.count(_ == expectedMessage) should equal(1)
+        }
+      }
       ()
     }
   }

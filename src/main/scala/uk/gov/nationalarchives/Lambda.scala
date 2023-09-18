@@ -355,5 +355,8 @@ object Lambda extends App {
       expectedParentRef: String = "",
       securityTag: Option[SecurityTag] = None
   )
-  private case class EntityWithUpdateEntityRequest(entity: Entity, updateEntityRequest: UpdateEntityRequest)
+  private[nationalarchives] case class EntityWithUpdateEntityRequest(
+      entity: Entity,
+      updateEntityRequest: UpdateEntityRequest
+  )
 }
