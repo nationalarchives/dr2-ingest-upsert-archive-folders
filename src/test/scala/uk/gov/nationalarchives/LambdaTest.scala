@@ -9,9 +9,9 @@ import java.util.UUID
 import scala.collection.immutable.ListMap
 import org.scalatest.matchers.should.Matchers._
 import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException
-import testUtils.ExternalServicesTestUtils
-import uk.gov.nationalarchives.Lambda.GetItemsResponse
+import uk.gov.nationalarchives.Lambda.{EntityWithUpdateEntityRequest, GetItemsResponse}
 import uk.gov.nationalarchives.dp.client.Entities.Entity
+import uk.gov.nationalarchives.testUtils.ExternalServicesTestUtils
 
 import java.io.{ByteArrayInputStream, OutputStream}
 
@@ -109,13 +109,14 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
   "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, " +
     "'addEntity' and 'addIdentifiersForEntity' once if 1 folder row's Entity was not returned from the 'entitiesByIdentifier', " +
     "'nodesFromEntity' 2x and 'updateEntity' once if folder's title is different from what's DDB" in {
-      val entityWithAnOldTitle = IO(structuralObjects(0).map(_.copy(title = Some("mock title_old_1"))))
+      val ref = UUID.fromString("d7879799-a7de-4aa6-8c7b-afced66a6c50")
+      val entityWithAnOldTitle = structuralObjects(0).map(_.copy(title = Some("mock title_old_1")))
       val responseWithNoEntity = IO(Seq())
       val mockLambda =
         MockLambda(
           convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
           entitiesWithSourceIdReturnValue = defaultEntitiesWithSourceIdReturnValues
-            .updated(0, entityWithAnOldTitle)
+            .updated(0, IO(entityWithAnOldTitle))
             .updated(2, responseWithNoEntity)
         )
 
@@ -137,13 +138,16 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         ),
         1,
         updateEntityRequests = List(
-          UpdateEntityRequest(
-            UUID.fromString("d7879799-a7de-4aa6-8c7b-afced66a6c50"),
-            Some("mock title_1"),
-            None,
-            StructuralObject,
-            Open,
-            None
+          EntityWithUpdateEntityRequest(
+            entityWithAnOldTitle.find(_.ref == ref).get,
+            UpdateEntityRequest(
+              ref,
+              Some("mock title_1"),
+              None,
+              StructuralObject,
+              Open,
+              None
+            )
           )
         )
       )
@@ -152,20 +156,19 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
   "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, " +
     "'nodesFromEntity' 3x and 'updateEntity' for each of the 3 folders' changes (title, description, both) if each folder's " +
     "title/description is different from what's DDB" in {
-      val entityWithAnOldTitle = IO(structuralObjects(0).map(_.copy(title = Some("mock title_old_1"))))
+      val entityWithAnOldTitle = structuralObjects(0).map(_.copy(title = Some("mock title_old_1")))
       val entityWithAnOldDescription =
-        IO(structuralObjects(1).map(_.copy(description = Some("mock description_old_1_1"))))
-      val entityWithAnOldTitleAndDescription = IO {
-        structuralObjects(2).map(
-          _.copy(title = Some("mock title_old_1_1_1"), description = Some("mock description_old_1_1_1"))
-        )
-      }
+        structuralObjects(1).map(_.copy(description = Some("mock description_old_1_1")))
+      val entityWithAnOldTitleAndDescription = structuralObjects(2).map(
+        _.copy(title = Some("mock title_old_1_1_1"), description = Some("mock description_old_1_1_1"))
+      )
+      val allEntities = List(entityWithAnOldTitle, entityWithAnOldDescription, entityWithAnOldTitleAndDescription)
 
+      def findEntity(uuid: String): Entity = allEntities.flatten.find(_.ref == UUID.fromString(uuid)).get
       val mockLambda =
         MockLambda(
           convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
-          entitiesWithSourceIdReturnValue =
-            List(entityWithAnOldTitle, entityWithAnOldDescription, entityWithAnOldTitleAndDescription)
+          entitiesWithSourceIdReturnValue = allEntities.map(e => IO(e))
         )
 
       mockLambda.handleRequest(mockInputStream, mockOutputStream, mockContext)
@@ -175,29 +178,38 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         3,
         3,
         updateEntityRequests = List(
-          UpdateEntityRequest(
-            UUID.fromString("d7879799-a7de-4aa6-8c7b-afced66a6c50"),
-            Some("mock title_1"),
-            None,
-            StructuralObject,
-            Open,
-            None
+          EntityWithUpdateEntityRequest(
+            findEntity("d7879799-a7de-4aa6-8c7b-afced66a6c50"),
+            UpdateEntityRequest(
+              UUID.fromString("d7879799-a7de-4aa6-8c7b-afced66a6c50"),
+              Some("mock title_1"),
+              None,
+              StructuralObject,
+              Open,
+              None
+            )
           ),
-          UpdateEntityRequest(
-            UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"),
-            None,
-            Some("mock description_1_1"),
-            StructuralObject,
-            Open,
-            None
+          EntityWithUpdateEntityRequest(
+            findEntity("a2d39ea3-6216-4f93-b078-62c7896b174c"),
+            UpdateEntityRequest(
+              UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"),
+              None,
+              Some("mock description_1_1"),
+              StructuralObject,
+              Open,
+              None
+            )
           ),
-          UpdateEntityRequest(
-            UUID.fromString("9dfc40be-5f44-4fa1-9c25-fbe03dd3f539"),
-            Some("mock title_1_1_1"),
-            Some("mock description_1_1_1"),
-            StructuralObject,
-            Open,
-            None
+          EntityWithUpdateEntityRequest(
+            findEntity("9dfc40be-5f44-4fa1-9c25-fbe03dd3f539"),
+            UpdateEntityRequest(
+              UUID.fromString("9dfc40be-5f44-4fa1-9c25-fbe03dd3f539"),
+              Some("mock title_1_1_1"),
+              Some("mock description_1_1_1"),
+              StructuralObject,
+              Open,
+              None
+            )
           )
         )
       )
@@ -502,10 +514,11 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
 
   "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier', " +
     "'nodesFromEntity' and 'updateEntity' method 3x but throws an exception if the API returns an Exception when attempting to update an SO" in {
-      val entityWithAnOldTitle = IO(structuralObjects(0).map(_.copy(title = Some("mock title_old_1"))))
+      val entityWithAnOldTitle = structuralObjects(0).map(_.copy(title = Some("mock title_old_1")))
+      val ref = UUID.fromString("d7879799-a7de-4aa6-8c7b-afced66a6c50")
       val mockLambda = MockLambda(
         convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
-        entitiesWithSourceIdReturnValue = defaultEntitiesWithSourceIdReturnValues.updated(0, entityWithAnOldTitle),
+        entitiesWithSourceIdReturnValue = defaultEntitiesWithSourceIdReturnValues.updated(0, IO(entityWithAnOldTitle)),
         updateEntityReturnValues = IO.raiseError(new Exception("API has encountered and issue"))
       )
 
@@ -520,13 +533,16 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         3,
         3,
         updateEntityRequests = List(
-          UpdateEntityRequest(
-            UUID.fromString("d7879799-a7de-4aa6-8c7b-afced66a6c50"),
-            Some("mock title_1"),
-            None,
-            StructuralObject,
-            Open,
-            None
+          EntityWithUpdateEntityRequest(
+            entityWithAnOldTitle.find(_.ref == ref).get,
+            UpdateEntityRequest(
+              ref,
+              Some("mock title_1"),
+              None,
+              StructuralObject,
+              Open,
+              None
+            )
           )
         )
       )

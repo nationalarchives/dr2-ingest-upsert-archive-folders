@@ -9,6 +9,7 @@ lazy val root = (project in file(".")).
     name := "dr2-ingest-upsert-archive-folders",
     libraryDependencies ++= Seq(
       awsDynamoDbClient,
+      awsEventBridgeClient,
       log4jSlf4j,
       log4jCore,
       log4jTemplateJson,
