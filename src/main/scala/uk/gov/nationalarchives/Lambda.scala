@@ -308,23 +308,26 @@ class Lambda extends RequestStreamHandler {
       val folderRow = folderInfo.folderRow
       val entity = folderInfo.entity.get
 
-      val updateEntityRequestWithNoUpdates =
-        UpdateEntityRequest(entity.ref, None, None, structuralObject, folderInfo.securityTag.get, None)
+      val potentialNewTitle = folderRow.title.getOrElse("")
+      val potentialNewDescription = folderRow.description
 
-      val potentiallyUpdatedTitleRequest =
-        if (folderRow.title.getOrElse("") != entity.title.getOrElse(""))
-          updateEntityRequestWithNoUpdates.copy(titleToChange = folderRow.title)
-        else updateEntityRequestWithNoUpdates
-
-      val potentiallyUpdatedTitleOrDescriptionRequest =
-        if (folderRow.description.getOrElse("") != entity.description.getOrElse(""))
-          potentiallyUpdatedTitleRequest.copy(descriptionToChange = folderRow.description)
-        else potentiallyUpdatedTitleRequest
+      val titleHasChanged = potentialNewTitle != entity.title.getOrElse("")
+      val descriptionHasChanged = potentialNewDescription.getOrElse("") != entity.description.getOrElse("")
 
       val updateEntityRequest =
-        if (potentiallyUpdatedTitleOrDescriptionRequest != updateEntityRequestWithNoUpdates)
-          Some(potentiallyUpdatedTitleOrDescriptionRequest)
-        else None
+        if (titleHasChanged || descriptionHasChanged) {
+          val parentRef = Option.when(folderInfo.expectedParentRef != "")(UUID.fromString(folderInfo.expectedParentRef))
+          val updatedTitleOrDescriptionRequest =
+            UpdateEntityRequest(
+              entity.ref,
+              potentialNewTitle,
+              potentialNewDescription,
+              structuralObject,
+              folderInfo.securityTag.get,
+              parentRef
+            )
+          Some(updatedTitleOrDescriptionRequest)
+        } else None
 
       updateEntityRequest.map(EntityWithUpdateEntityRequest(entity, _))
     }
