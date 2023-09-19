@@ -91,9 +91,9 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
       addEntityReturnValue: IO[UUID] = IO(UUID.fromString("9dfc40be-5f44-4fa1-9c25-fbe03dd3f539")),
       addIdentifierReturnValue: IO[String] = IO("The Identifier was added"),
       getParentFolderRefAndSecurityTagReturnValue: List[IO[Map[String, String]]] = List(
-        IO(Map("ParentRef" -> "562530e3-3b6e-435a-8b56-1d3ad4868a9a", "SecurityTag" -> "open")),
-        IO(Map("ParentRef" -> "d7879799-a7de-4aa6-8c7b-afced66a6c50", "SecurityTag" -> "open")),
-        IO(Map("ParentRef" -> "a2d39ea3-6216-4f93-b078-62c7896b174c", "SecurityTag" -> "open"))
+        IO(Map("Parent" -> "562530e3-3b6e-435a-8b56-1d3ad4868a9a", "SecurityTag" -> "open")),
+        IO(Map("Parent" -> "d7879799-a7de-4aa6-8c7b-afced66a6c50", "SecurityTag" -> "open")),
+        IO(Map("Parent" -> "a2d39ea3-6216-4f93-b078-62c7896b174c", "SecurityTag" -> "open"))
       ),
       updateEntityReturnValues: IO[String] = IO("Entity was updated")
   ) extends Lambda() {

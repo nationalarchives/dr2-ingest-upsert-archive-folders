@@ -450,9 +450,9 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       val mockLambda = MockLambda(
         convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
         getParentFolderRefAndSecurityTagReturnValue = List(
-          IO(Map("ParentRef" -> "562530e3-3b6e-435a-8b56-1d3ad4868a9a", "SecurityTag" -> "open")),
-          IO(Map("ParentRef" -> "an-unexpected-parent-ref", "SecurityTag" -> "open")),
-          IO(Map("ParentRef" -> "a2d39ea3-6216-4f93-b078-62c7896b174c", "SecurityTag" -> "open"))
+          IO(Map("Parent" -> "562530e3-3b6e-435a-8b56-1d3ad4868a9a", "SecurityTag" -> "open")),
+          IO(Map("Parent" -> "an-unexpected-parent-ref", "SecurityTag" -> "open")),
+          IO(Map("Parent" -> "a2d39ea3-6216-4f93-b078-62c7896b174c", "SecurityTag" -> "open"))
         )
       )
 
@@ -473,9 +473,9 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       val mockLambda = MockLambda(
         convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
         getParentFolderRefAndSecurityTagReturnValue = List(
-          IO(Map("ParentRef" -> "562530e3-3b6e-435a-8b56-1d3ad4868a9a")),
-          IO(Map("ParentRef" -> "d7879799-a7de-4aa6-8c7b-afced66a6c50", "SecurityTag" -> "open")),
-          IO(Map("ParentRef" -> "a2d39ea3-6216-4f93-b078-62c7896b174c", "SecurityTag" -> "open"))
+          IO(Map("Parent" -> "562530e3-3b6e-435a-8b56-1d3ad4868a9a")),
+          IO(Map("Parent" -> "d7879799-a7de-4aa6-8c7b-afced66a6c50", "SecurityTag" -> "open")),
+          IO(Map("Parent" -> "a2d39ea3-6216-4f93-b078-62c7896b174c", "SecurityTag" -> "open"))
         )
       )
 
@@ -495,9 +495,9 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       val mockLambda = MockLambda(
         convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
         getParentFolderRefAndSecurityTagReturnValue = List(
-          IO(Map("ParentRef" -> "562530e3-3b6e-435a-8b56-1d3ad4868a9a", "SecurityTag" -> "unexpectedTag")),
-          IO(Map("ParentRef" -> "d7879799-a7de-4aa6-8c7b-afced66a6c50", "SecurityTag" -> "open")),
-          IO(Map("ParentRef" -> "a2d39ea3-6216-4f93-b078-62c7896b174c", "SecurityTag" -> "open"))
+          IO(Map("Parent" -> "562530e3-3b6e-435a-8b56-1d3ad4868a9a", "SecurityTag" -> "unexpectedTag")),
+          IO(Map("Parent" -> "d7879799-a7de-4aa6-8c7b-afced66a6c50", "SecurityTag" -> "open")),
+          IO(Map("Parent" -> "a2d39ea3-6216-4f93-b078-62c7896b174c", "SecurityTag" -> "open"))
         )
       )
 

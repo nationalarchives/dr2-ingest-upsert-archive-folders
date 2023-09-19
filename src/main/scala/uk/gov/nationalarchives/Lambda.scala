@@ -43,7 +43,7 @@ class Lambda extends RequestStreamHandler {
     Fs2Client.entityClient(config.apiUrl)
   }
   val dADynamoDBClient: DADynamoDBClient[IO] = DADynamoDBClient[IO]()
-  private val parentRefNodeName = "ParentRef"
+  private val parentRefNodeName = "Parent"
   private val structuralObject = StructuralObject
   private val securityTagName = "SecurityTag"
   private val sourceId = "SourceId"
