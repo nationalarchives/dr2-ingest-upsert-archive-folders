@@ -274,9 +274,10 @@ class Lambda extends RequestStreamHandler {
       val entity = folderInfo.entity.get
       val ref = entity.ref
       val isTopLevelFolder = folderInfo.folderRow.parentPath == ""
+      val childNodeNames = (if (isTopLevelFolder) Nil else List(parentRefNodeName)) ++ List(securityTagName)
 
       entitiesClient
-        .nodesFromEntity(ref, structuralObject, List(parentRefNodeName, securityTagName), secretName)
+        .nodesFromEntity(ref, structuralObject, childNodeNames, secretName)
         .flatMap { nodeNamesAndValues =>
           val parentRef = nodeNamesAndValues.getOrElse(parentRefNodeName, "")
 

@@ -280,7 +280,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
         )
 
         nodesFromEntityChildNodesToAddCaptor.getAllValues.toArray.toList should be(
-          List.fill(numOfNodesFromEntityInvocations)(List("ParentRef", "SecurityTag"))
+          List("SecurityTag") :: List.fill(numOfNodesFromEntityInvocations - 1)(List("Parent", "SecurityTag"))
         )
 
         nodesFromEntitySecretNameCaptor.getAllValues.toArray.toList should be(
