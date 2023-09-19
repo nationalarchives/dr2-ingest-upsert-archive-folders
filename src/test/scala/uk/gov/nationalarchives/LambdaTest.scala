@@ -22,8 +22,6 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
 
   val mockInput = s"""{
     "batchId": "TDD-2023-ABC",
-    "rootPath": "testservice://testpath/TDD-2023-ABC/",
-    "batchType": "testDocument",
     "archiveHierarchyFolders": [
       "${folderIds.head}",
       "${folderIds(1)}",

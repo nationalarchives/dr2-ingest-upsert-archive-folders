@@ -342,8 +342,6 @@ object Lambda extends App {
 
   private case class StepFnInput(
       batchId: String,
-      rootPath: String,
-      batchType: String,
       archiveHierarchyFolders: List[String],
       contentFolders: List[String],
       contentAssets: List[String]
