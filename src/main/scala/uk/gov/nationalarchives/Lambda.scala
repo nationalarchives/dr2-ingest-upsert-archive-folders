@@ -138,10 +138,16 @@ class Lambda extends RequestStreamHandler {
         if (parentPathSplitBySlash.head.isEmpty || parentPathSplitBySlash.isEmpty) 0 else parentPathSplitBySlash.length
       }
 
-    if (numberOfSlashesInParentPathPerFolder != List(0, 1, 2))
+    val slashesInParentPathsIncreaseByOne: Boolean =
+      numberOfSlashesInParentPathPerFolder.zip(numberOfSlashesInParentPathPerFolder.drop(1)).forall {
+        case (slashesInParentOfParent, slashesInParent) => (slashesInParent - slashesInParentOfParent) == 1
+      }
+
+    if (!slashesInParentPathsIncreaseByOne)
       IO.raiseError {
         new Exception(
-          "The lengths of the parent paths should increase for each subfolder (from 0 to 2); this is not the case"
+          s"The lengths of the parent paths should increase by 1 for each subfolder (from 0 to N); " +
+            s"instead it was ${numberOfSlashesInParentPathPerFolder.mkString(", ")}"
         )
       }
     else IO(numberOfSlashesInParentPathPerFolder)

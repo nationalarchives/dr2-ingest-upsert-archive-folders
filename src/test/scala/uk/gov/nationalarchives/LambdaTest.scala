@@ -252,10 +252,10 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
 
   "handleRequest" should "call the DDB client's 'getItems' method and throw an exception when sorted parent folder path length isn't '0, 1, 2'" in {
     val lastElementFolderRow = folderIdsAndRows("93f5a200-9ee7-423d-827c-aad823182ad2")
-    val lastElementFolderRowsWithToShortOfAParentPath =
+    val lastElementFolderRowsWithTooShortOfAParentPath =
       lastElementFolderRow.copy(parentPath = "e88e433a-1f3e-48c5-b15f-234c0e663c27")
     val folderIdsAndRowsWithParentPathMistake =
-      folderIdsAndRows + ("93f5a200-9ee7-423d-827c-aad823182ad2" -> lastElementFolderRowsWithToShortOfAParentPath)
+      folderIdsAndRows + ("93f5a200-9ee7-423d-827c-aad823182ad2" -> lastElementFolderRowsWithTooShortOfAParentPath)
 
     val mockLambda = MockLambda(convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRowsWithParentPathMistake))
 
@@ -264,7 +264,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
     }
 
     thrownException.getMessage should be(
-      "The lengths of the parent paths should increase for each subfolder (from 0 to 2); this is not the case"
+      "The lengths of the parent paths should increase by 1 for each subfolder (from 0 to N); instead it was 0, 1, 1"
     )
 
     mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRowsWithParentPathMistake, 0, 0)
