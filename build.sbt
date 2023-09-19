@@ -22,7 +22,7 @@ lazy val root = (project in file(".")).
       scalaTest % Test
     )
   )
-)
+
 (assembly / assemblyJarName) := "dr2-ingest-upsert-archive-folders.jar"
 
 scalacOptions ++= Seq("-Wunused:imports", "-Werror")
