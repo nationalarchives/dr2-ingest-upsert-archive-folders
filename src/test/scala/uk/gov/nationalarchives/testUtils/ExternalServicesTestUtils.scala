@@ -114,7 +114,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
     def getRefCaptor: ArgumentCaptor[UUID] = ArgumentCaptor.forClass(classOf[UUID])
     def structuralObjectCaptor: ArgumentCaptor[StructuralObject.type] =
       ArgumentCaptor.forClass(classOf[StructuralObject.type])
-    def identifiersToAddCaptor: ArgumentCaptor[List[Identifier]] = ArgumentCaptor.forClass(classOf[List[Identifier]])
+    def identifiersToAddCaptor: ArgumentCaptor[Identifier] = ArgumentCaptor.forClass(classOf[Identifier])
     def childNodesCaptor: ArgumentCaptor[List[String]] = ArgumentCaptor.forClass(classOf[List[String]])
     def getUpdateFolderRequestCaptor: ArgumentCaptor[UpdateEntityRequest] =
       ArgumentCaptor.forClass(classOf[UpdateEntityRequest])
@@ -151,10 +151,10 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
       when(mockEntityClient.addEntity(any[AddEntityRequest], any[String]))
         .thenReturn(addEntityReturnValue)
       when(
-        mockEntityClient.addIdentifiersForEntity(
+        mockEntityClient.addIdentifierForEntity(
           any[UUID],
           any[StructuralObject.type],
-          any[List[Identifier]],
+          any[Identifier],
           any[String]
         )
       )
@@ -229,7 +229,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
       val addIdentifiersIdentifiersToAddCaptor = identifiersToAddCaptor
       val addIdentifiersSecretNameCaptor = getEntitiesSecretNameCaptor
 
-      verify(mockEntityClient, times(numOfAddIdentifierRequests)).addIdentifiersForEntity(
+      verify(mockEntityClient, times(numOfAddIdentifierRequests)).addIdentifierForEntity(
         addIdentifiersRefCaptor.capture(),
         addIdentifiersStructuralObjectCaptor.capture(),
         addIdentifiersIdentifiersToAddCaptor.capture(),
@@ -246,7 +246,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
         )
 
         addIdentifiersIdentifiersToAddCaptor.getAllValues.toArray.toList should be(
-          addEntityRequests.map { addEntityRequest =>
+          addEntityRequests.flatMap { addEntityRequest =>
             val folderName = addEntityRequest.title.get
             List(Identifier("SourceId", folderName), Identifier("Code", folderName))
           }
@@ -315,7 +315,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
           val updateRequest = entityAndUpdateRequest.updateEntityRequest
           val entity = entityAndUpdateRequest.entity
           val oldTitle = entity.title.getOrElse("")
-          val newTitle = updateRequest.titleToChange.getOrElse("")
+          val newTitle = updateRequest.titleToChange
           val oldDescription = entity.description.getOrElse("")
           val newDescription = updateRequest.descriptionToChange.getOrElse("")
           val expectedMessage = s":preservica: Entity ${updateRequest.ref} has been updated\n" +

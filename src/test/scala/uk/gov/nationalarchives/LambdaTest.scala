@@ -61,7 +61,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             Some(UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"))
           )
         ),
-        1
+        2
       )
     }
 
@@ -100,7 +100,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             Some(UUID.fromString("9dfc40be-5f44-4fa1-9c25-fbe03dd3f539"))
           )
         ),
-        2
+        4
       )
     }
 
@@ -134,14 +134,14 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             Some(UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"))
           )
         ),
-        1,
+        2,
         updateEntityRequests = List(
           EntityWithUpdateEntityRequest(
             entityWithAnOldTitle.find(_.ref == ref).get,
             UpdateEntityRequest(
               ref,
-              Some("mock title_1"),
-              None,
+              "mock title_1",
+              Some("mock description_1"),
               StructuralObject,
               Open,
               None
@@ -180,8 +180,8 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             findEntity("d7879799-a7de-4aa6-8c7b-afced66a6c50"),
             UpdateEntityRequest(
               UUID.fromString("d7879799-a7de-4aa6-8c7b-afced66a6c50"),
-              Some("mock title_1"),
-              None,
+              "mock title_1",
+              Some("mock description_1"),
               StructuralObject,
               Open,
               None
@@ -191,22 +191,22 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             findEntity("a2d39ea3-6216-4f93-b078-62c7896b174c"),
             UpdateEntityRequest(
               UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"),
-              None,
+              "mock title_1_1",
               Some("mock description_1_1"),
               StructuralObject,
               Open,
-              None
+              Some(UUID.fromString("d7879799-a7de-4aa6-8c7b-afced66a6c50"))
             )
           ),
           EntityWithUpdateEntityRequest(
             findEntity("9dfc40be-5f44-4fa1-9c25-fbe03dd3f539"),
             UpdateEntityRequest(
               UUID.fromString("9dfc40be-5f44-4fa1-9c25-fbe03dd3f539"),
-              Some("mock title_1_1_1"),
+              "mock title_1_1_1",
               Some("mock description_1_1_1"),
               StructuralObject,
               Open,
-              None
+              Some(UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"))
             )
           )
         )
@@ -415,7 +415,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             Some(UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"))
           )
         ),
-        1
+        2
       )
     }
 
@@ -535,8 +535,8 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             entityWithAnOldTitle.find(_.ref == ref).get,
             UpdateEntityRequest(
               ref,
-              Some("mock title_1"),
-              None,
+              "mock title_1",
+              Some("mock description_1"),
               StructuralObject,
               Open,
               None

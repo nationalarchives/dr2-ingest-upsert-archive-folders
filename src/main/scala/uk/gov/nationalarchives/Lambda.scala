@@ -110,7 +110,7 @@ class Lambda extends RequestStreamHandler {
     val updateEntityRequest = folderUpdateRequest.updateEntityRequest
     s""":preservica: Entity ${entity.ref} has been updated
          |*Old title*: ${entity.title.getOrElse("")}
-         |*New title*: ${updateEntityRequest.titleToChange.getOrElse("")}
+         |*New title*: ${updateEntityRequest.titleToChange}
          |*Old description*: ${entity.description.getOrElse("")}
          |*New description*: ${updateEntityRequest.descriptionToChange.getOrElse("")}
          |""".stripMargin
@@ -237,12 +237,14 @@ class Lambda extends RequestStreamHandler {
       )
       for {
         entityId <- entitiesClient.addEntity(addFolderRequest, secretName)
-        _ <- entitiesClient.addIdentifiersForEntity(
-          entityId,
-          structuralObject,
-          identifiersToAdd,
-          secretName
-        )
+        _ <- identifiersToAdd.map { identifierToAdd =>
+          entitiesClient.addIdentifierForEntity(
+            entityId,
+            structuralObject,
+            identifierToAdd,
+            secretName
+          )
+        }.sequence
         _ <- createFolders(
           folderInfoOfEntities.tail,
           entitiesClient,
