@@ -88,7 +88,11 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
   case class MockLambda(
       getAttributeValuesReturnValue: IO[List[GetItemsResponse]],
       entitiesWithSourceIdReturnValue: List[IO[Seq[Entity]]] = defaultEntitiesWithSourceIdReturnValues,
-      addEntityReturnValue: IO[UUID] = IO(UUID.fromString("9dfc40be-5f44-4fa1-9c25-fbe03dd3f539")),
+      addEntityReturnValues: List[IO[UUID]] = List(
+        IO(structuralObjects(0).head.ref),
+        IO(structuralObjects(1).head.ref),
+        IO(structuralObjects(2).head.ref)
+      ),
       addIdentifierReturnValue: IO[String] = IO("The Identifier was added"),
       getParentFolderRefAndSecurityTagReturnValue: List[IO[Map[String, String]]] = List(
         IO(Map("Parent" -> "562530e3-3b6e-435a-8b56-1d3ad4868a9a", "SecurityTag" -> "open")),
@@ -148,8 +152,11 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
           entitiesWithSourceIdReturnValue(1),
           entitiesWithSourceIdReturnValue(2)
         )
-      when(mockEntityClient.addEntity(any[AddEntityRequest], any[String]))
-        .thenReturn(addEntityReturnValue)
+      when(mockEntityClient.addEntity(any[AddEntityRequest], any[String])).thenReturn(
+        addEntityReturnValues.head,
+        addEntityReturnValues.lift(1).getOrElse(IO(UUID.randomUUID())),
+        addEntityReturnValues.lift(2).getOrElse(IO(UUID.randomUUID()))
+      )
       when(
         mockEntityClient.addIdentifierForEntity(
           any[UUID],

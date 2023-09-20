@@ -42,7 +42,8 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       val responseWithNoEntity = IO(Seq())
       val mockLambda = MockLambda(
         convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
-        entitiesWithSourceIdReturnValue = defaultEntitiesWithSourceIdReturnValues.updated(2, responseWithNoEntity)
+        entitiesWithSourceIdReturnValue = defaultEntitiesWithSourceIdReturnValues.updated(2, responseWithNoEntity),
+        addEntityReturnValues = List(IO(structuralObjects(1).head.ref))
       )
 
       mockLambda.handleRequest(mockInputStream, mockOutputStream, mockContext)
@@ -58,10 +59,60 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             Some("mock description_1_1_1"),
             StructuralObject,
             Open,
-            Some(UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"))
+            Some(structuralObjects(1).head.ref)
           )
         ),
         2
+      )
+    }
+
+  "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, " +
+    "and 'addEntity' and 'addIdentifiersForEntity' 3x if 3 folder row's Entities were not returned from the 'entitiesByIdentifier' call" + "" +
+    "passing in None as the parentRef for the top-level folder" in {
+      val responseWithNoEntity = IO(Seq())
+      val mockLambda = MockLambda(
+        convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
+        entitiesWithSourceIdReturnValue = List(IO(Seq()), IO(Seq()), IO(Seq())),
+        addEntityReturnValues = List(
+          IO(structuralObjects(0).head.ref),
+          IO(structuralObjects(1).head.ref),
+          IO(structuralObjects(2).head.ref)
+        )
+      )
+
+      mockLambda.handleRequest(mockInputStream, mockOutputStream, mockContext)
+
+      mockLambda.verifyInvocationsAndArgumentsPassed(
+        folderIdsAndRows,
+        3,
+        0,
+        addEntityRequests = List(
+          AddEntityRequest(
+            None,
+            Some("mock title_1"),
+            Some("mock description_1"),
+            StructuralObject,
+            Open,
+            None
+          ),
+          AddEntityRequest(
+            None,
+            Some("mock title_1_1"),
+            Some("mock description_1_1"),
+            StructuralObject,
+            Open,
+            Some(structuralObjects(0).head.ref)
+          ),
+          AddEntityRequest(
+            None,
+            Some("mock title_1_1_1"),
+            Some("mock description_1_1_1"),
+            StructuralObject,
+            Open,
+            Some(structuralObjects(1).head.ref)
+          )
+        ),
+        6
       )
     }
 
@@ -73,7 +124,11 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         MockLambda(
           convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
           entitiesWithSourceIdReturnValue =
-            defaultEntitiesWithSourceIdReturnValues.take(1) ++ List(responseWithNoEntity, responseWithNoEntity)
+            defaultEntitiesWithSourceIdReturnValues.take(1) ++ List(responseWithNoEntity, responseWithNoEntity),
+          addEntityReturnValues = List(
+            IO(structuralObjects(1).head.ref),
+            IO(structuralObjects(2).head.ref)
+          )
         )
 
       mockLambda.handleRequest(mockInputStream, mockOutputStream, mockContext)
@@ -97,7 +152,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             Some("mock description_1_1_1"),
             StructuralObject,
             Open,
-            Some(UUID.fromString("9dfc40be-5f44-4fa1-9c25-fbe03dd3f539"))
+            Some(UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"))
           )
         ),
         4
@@ -115,7 +170,8 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
           convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
           entitiesWithSourceIdReturnValue = defaultEntitiesWithSourceIdReturnValues
             .updated(0, IO(entityWithAnOldTitle))
-            .updated(2, responseWithNoEntity)
+            .updated(2, responseWithNoEntity),
+          addEntityReturnValues = List(IO(structuralObjects(1).head.ref))
         )
 
       mockLambda.handleRequest(mockInputStream, mockOutputStream, mockContext)
@@ -359,7 +415,11 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         MockLambda(
           convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
           entitiesWithSourceIdReturnValue = defaultEntitiesWithSourceIdReturnValues.updated(2, responseWithNoEntity),
-          addEntityReturnValue = IO.raiseError(new Exception("API has encountered an issue adding entity"))
+          addEntityReturnValues = List(
+            IO.raiseError(new Exception("API has encountered an issue adding entity")),
+            IO.raiseError(new Exception("API has encountered an issue adding entity")),
+            IO.raiseError(new Exception("API has encountered an issue adding entity"))
+          )
         )
 
       val thrownException = intercept[Exception] {
@@ -392,6 +452,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         MockLambda(
           convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
           entitiesWithSourceIdReturnValue = defaultEntitiesWithSourceIdReturnValues.updated(2, responseWithNoEntity),
+          addEntityReturnValues = List(IO(structuralObjects(1).head.ref)),
           addIdentifierReturnValue = IO.raiseError(new Exception("API has encountered an issue adding identifier"))
         )
 

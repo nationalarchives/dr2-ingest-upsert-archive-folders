@@ -219,19 +219,17 @@ class Lambda extends RequestStreamHandler {
       folderInfoOfEntities: List[FullFolderInfo],
       entitiesClient: EntityClient[IO, Fs2Streams[IO]],
       secretName: String,
-      foldersPreviouslyAdded: Map[String, UUID] = Map()
+      previouslyCreatedEntityIdsWithFolderRowIdsAsKeys: Map[String, UUID] = Map()
   ): IO[Unit] = {
     if (folderInfoOfEntities.isEmpty) IO.unit
     else {
       val folderInfo = folderInfoOfEntities.head
-
-      val folderName = folderInfo.folderRow.name
-      val identifiersToAdd = List(Identifier(sourceId, folderName), Identifier("Code", folderName))
-
-      val parentRef = if (folderInfo.expectedParentRef.isEmpty) {
-        val parentId = folderInfo.folderRow.parentPath.split("/").last
-        foldersPreviouslyAdded(parentId).toString
-      } else folderInfo.expectedParentRef
+      val potentialParentRef =
+        if (folderInfo.expectedParentRef.isEmpty) {
+          // 'expectedParentRef' is empty either because parent was not in Preservica at start of Lambda, or folder is top-level
+          val parentId = folderInfo.folderRow.parentPath.split("/").last
+          previouslyCreatedEntityIdsWithFolderRowIdsAsKeys.get(parentId)
+        } else Some(UUID.fromString(folderInfo.expectedParentRef))
 
       val addFolderRequest = AddEntityRequest(
         None,
@@ -239,8 +237,12 @@ class Lambda extends RequestStreamHandler {
         folderInfo.folderRow.description,
         structuralObject,
         Open,
-        Some(UUID.fromString(parentRef))
+        potentialParentRef
       )
+
+      val folderName = folderInfo.folderRow.name
+      val identifiersToAdd = List(Identifier(sourceId, folderName), Identifier("Code", folderName))
+
       for {
         entityId <- entitiesClient.addEntity(addFolderRequest, secretName)
         _ <- identifiersToAdd.map { identifierToAdd =>
@@ -255,7 +257,7 @@ class Lambda extends RequestStreamHandler {
           folderInfoOfEntities.tail,
           entitiesClient,
           secretName,
-          foldersPreviouslyAdded + (folderInfo.folderRow.id -> entityId)
+          previouslyCreatedEntityIdsWithFolderRowIdsAsKeys + (folderInfo.folderRow.id -> entityId)
         )
       } yield ()
     }
