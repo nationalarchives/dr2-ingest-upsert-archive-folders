@@ -244,8 +244,11 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
       )
 
       if (numOfAddIdentifierRequests > 0) {
+        val numOfAddIdentifierRequestsPerEntity = 2
         addIdentifiersRefCaptor.getAllValues.toArray.toList should be(
-          List.fill(numOfAddIdentifierRequests)(addEntityReturnValue.unsafeRunSync())
+          addEntityReturnValues.flatMap { addEntityReturnValue =>
+            List.fill(numOfAddIdentifierRequestsPerEntity)(addEntityReturnValue.unsafeRunSync())
+          }
         )
 
         addIdentifiersStructuralObjectCaptor.getAllValues.toArray.toList should be(
