@@ -197,7 +197,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             UpdateEntityRequest(
               ref,
               "mock title_1",
-              Some("mock description_1"),
+              None,
               StructuralObject,
               Open,
               None
@@ -237,7 +237,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             UpdateEntityRequest(
               UUID.fromString("d7879799-a7de-4aa6-8c7b-afced66a6c50"),
               "mock title_1",
-              Some("mock description_1"),
+              None,
               StructuralObject,
               Open,
               None
@@ -597,7 +597,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             UpdateEntityRequest(
               ref,
               "mock title_1",
-              Some("mock description_1"),
+              None,
               StructuralObject,
               Open,
               None

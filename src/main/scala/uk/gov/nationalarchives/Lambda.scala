@@ -329,7 +329,7 @@ class Lambda extends RequestStreamHandler {
             UpdateEntityRequest(
               entity.ref,
               potentialNewTitle,
-              potentialNewDescription,
+              if (descriptionHasChanged) potentialNewDescription else None,
               structuralObject,
               folderInfo.securityTag.get,
               parentRef
