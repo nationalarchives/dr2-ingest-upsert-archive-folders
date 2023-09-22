@@ -18,6 +18,10 @@ import java.io.{ByteArrayInputStream, OutputStream}
 class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
   private val mockOutputStream = mock[OutputStream]
 
+  private val parentSo = structuralObjects(0).head.ref
+  private val childSo = structuralObjects(1).head.ref
+  private val grandChildSo = structuralObjects(2).head.ref
+
   private val folderIds = folderIdsAndRows.keys.toList
 
   val mockInput = s"""{
@@ -43,7 +47,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       val mockLambda = MockLambda(
         convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
         entitiesWithSourceIdReturnValue = defaultEntitiesWithSourceIdReturnValues.updated(2, responseWithNoEntity),
-        addEntityReturnValues = List(IO(structuralObjects(1).head.ref))
+        addEntityReturnValues = List(IO(childSo))
       )
 
       mockLambda.handleRequest(mockInputStream, mockOutputStream, mockContext)
@@ -59,7 +63,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             Some("mock description_1_1_1"),
             StructuralObject,
             Open,
-            Some(structuralObjects(1).head.ref)
+            Some(childSo)
           )
         ),
         2
@@ -74,9 +78,9 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
         entitiesWithSourceIdReturnValue = List(responseWithNoEntity, responseWithNoEntity, responseWithNoEntity),
         addEntityReturnValues = List(
-          IO(structuralObjects(0).head.ref),
-          IO(structuralObjects(1).head.ref),
-          IO(structuralObjects(2).head.ref)
+          IO(parentSo),
+          IO(childSo),
+          IO(grandChildSo)
         )
       )
 
@@ -101,7 +105,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             Some("mock description_1_1"),
             StructuralObject,
             Open,
-            Some(structuralObjects(0).head.ref)
+            Some(parentSo)
           ),
           AddEntityRequest(
             None,
@@ -109,7 +113,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             Some("mock description_1_1_1"),
             StructuralObject,
             Open,
-            Some(structuralObjects(1).head.ref)
+            Some(childSo)
           )
         ),
         6
@@ -126,8 +130,8 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
           entitiesWithSourceIdReturnValue =
             defaultEntitiesWithSourceIdReturnValues.take(1) ++ List(responseWithNoEntity, responseWithNoEntity),
           addEntityReturnValues = List(
-            IO(structuralObjects(1).head.ref),
-            IO(structuralObjects(2).head.ref)
+            IO(childSo),
+            IO(grandChildSo)
           )
         )
 
@@ -171,7 +175,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
           entitiesWithSourceIdReturnValue = defaultEntitiesWithSourceIdReturnValues
             .updated(0, IO(entityWithAnOldTitle))
             .updated(2, responseWithNoEntity),
-          addEntityReturnValues = List(IO(structuralObjects(1).head.ref))
+          addEntityReturnValues = List(IO(childSo))
         )
 
       mockLambda.handleRequest(mockInputStream, mockOutputStream, mockContext)
@@ -439,7 +443,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             Some("mock description_1_1_1"),
             StructuralObject,
             Open,
-            Some(UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"))
+            Some(childSo)
           )
         )
       )
@@ -452,7 +456,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         MockLambda(
           convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
           entitiesWithSourceIdReturnValue = defaultEntitiesWithSourceIdReturnValues.updated(2, responseWithNoEntity),
-          addEntityReturnValues = List(IO(structuralObjects(1).head.ref)),
+          addEntityReturnValues = List(IO(childSo)),
           addIdentifierReturnValue = IO.raiseError(new Exception("API has encountered an issue adding identifier"))
         )
 
