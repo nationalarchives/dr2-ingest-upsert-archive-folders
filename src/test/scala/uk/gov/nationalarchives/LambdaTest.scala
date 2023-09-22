@@ -72,7 +72,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       val responseWithNoEntity = IO(Seq())
       val mockLambda = MockLambda(
         convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
-        entitiesWithSourceIdReturnValue = List(IO(Seq()), IO(Seq()), IO(Seq())),
+        entitiesWithSourceIdReturnValue = List(responseWithNoEntity, responseWithNoEntity, responseWithNoEntity),
         addEntityReturnValues = List(
           IO(structuralObjects(0).head.ref),
           IO(structuralObjects(1).head.ref),
