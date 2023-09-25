@@ -88,12 +88,16 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
   case class MockLambda(
       getAttributeValuesReturnValue: IO[List[GetItemsResponse]],
       entitiesWithSourceIdReturnValue: List[IO[Seq[Entity]]] = defaultEntitiesWithSourceIdReturnValues,
-      addEntityReturnValue: IO[UUID] = IO(UUID.fromString("9dfc40be-5f44-4fa1-9c25-fbe03dd3f539")),
+      addEntityReturnValues: List[IO[UUID]] = List(
+        IO(structuralObjects(0).head.ref),
+        IO(structuralObjects(1).head.ref),
+        IO(structuralObjects(2).head.ref)
+      ),
       addIdentifierReturnValue: IO[String] = IO("The Identifier was added"),
       getParentFolderRefAndSecurityTagReturnValue: List[IO[Map[String, String]]] = List(
-        IO(Map("ParentRef" -> "562530e3-3b6e-435a-8b56-1d3ad4868a9a", "SecurityTag" -> "open")),
-        IO(Map("ParentRef" -> "d7879799-a7de-4aa6-8c7b-afced66a6c50", "SecurityTag" -> "open")),
-        IO(Map("ParentRef" -> "a2d39ea3-6216-4f93-b078-62c7896b174c", "SecurityTag" -> "open"))
+        IO(Map("Parent" -> "562530e3-3b6e-435a-8b56-1d3ad4868a9a", "SecurityTag" -> "open")),
+        IO(Map("Parent" -> "d7879799-a7de-4aa6-8c7b-afced66a6c50", "SecurityTag" -> "open")),
+        IO(Map("Parent" -> "a2d39ea3-6216-4f93-b078-62c7896b174c", "SecurityTag" -> "open"))
       ),
       updateEntityReturnValues: IO[String] = IO("Entity was updated")
   ) extends Lambda() {
@@ -114,7 +118,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
     def getRefCaptor: ArgumentCaptor[UUID] = ArgumentCaptor.forClass(classOf[UUID])
     def structuralObjectCaptor: ArgumentCaptor[StructuralObject.type] =
       ArgumentCaptor.forClass(classOf[StructuralObject.type])
-    def identifiersToAddCaptor: ArgumentCaptor[List[Identifier]] = ArgumentCaptor.forClass(classOf[List[Identifier]])
+    def identifiersToAddCaptor: ArgumentCaptor[Identifier] = ArgumentCaptor.forClass(classOf[Identifier])
     def childNodesCaptor: ArgumentCaptor[List[String]] = ArgumentCaptor.forClass(classOf[List[String]])
     def getUpdateFolderRequestCaptor: ArgumentCaptor[UpdateEntityRequest] =
       ArgumentCaptor.forClass(classOf[UpdateEntityRequest])
@@ -148,13 +152,16 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
           entitiesWithSourceIdReturnValue(1),
           entitiesWithSourceIdReturnValue(2)
         )
-      when(mockEntityClient.addEntity(any[AddEntityRequest], any[String]))
-        .thenReturn(addEntityReturnValue)
+      when(mockEntityClient.addEntity(any[AddEntityRequest], any[String])).thenReturn(
+        addEntityReturnValues.head,
+        addEntityReturnValues.lift(1).getOrElse(IO(UUID.randomUUID())),
+        addEntityReturnValues.lift(2).getOrElse(IO(UUID.randomUUID()))
+      )
       when(
-        mockEntityClient.addIdentifiersForEntity(
+        mockEntityClient.addIdentifierForEntity(
           any[UUID],
           any[StructuralObject.type],
-          any[List[Identifier]],
+          any[Identifier],
           any[String]
         )
       )
@@ -229,7 +236,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
       val addIdentifiersIdentifiersToAddCaptor = identifiersToAddCaptor
       val addIdentifiersSecretNameCaptor = getEntitiesSecretNameCaptor
 
-      verify(mockEntityClient, times(numOfAddIdentifierRequests)).addIdentifiersForEntity(
+      verify(mockEntityClient, times(numOfAddIdentifierRequests)).addIdentifierForEntity(
         addIdentifiersRefCaptor.capture(),
         addIdentifiersStructuralObjectCaptor.capture(),
         addIdentifiersIdentifiersToAddCaptor.capture(),
@@ -237,8 +244,11 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
       )
 
       if (numOfAddIdentifierRequests > 0) {
+        val numOfAddIdentifierRequestsPerEntity = 2
         addIdentifiersRefCaptor.getAllValues.toArray.toList should be(
-          List.fill(numOfAddIdentifierRequests)(addEntityReturnValue.unsafeRunSync())
+          addEntityReturnValues.flatMap { addEntityReturnValue =>
+            List.fill(numOfAddIdentifierRequestsPerEntity)(addEntityReturnValue.unsafeRunSync())
+          }
         )
 
         addIdentifiersStructuralObjectCaptor.getAllValues.toArray.toList should be(
@@ -246,7 +256,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
         )
 
         addIdentifiersIdentifiersToAddCaptor.getAllValues.toArray.toList should be(
-          addEntityRequests.map { addEntityRequest =>
+          addEntityRequests.flatMap { addEntityRequest =>
             val folderName = addEntityRequest.title.get
             List(Identifier("SourceId", folderName), Identifier("Code", folderName))
           }
@@ -280,7 +290,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
         )
 
         nodesFromEntityChildNodesToAddCaptor.getAllValues.toArray.toList should be(
-          List.fill(numOfNodesFromEntityInvocations)(List("ParentRef", "SecurityTag"))
+          List("SecurityTag") :: List.fill(numOfNodesFromEntityInvocations - 1)(List("Parent", "SecurityTag"))
         )
 
         nodesFromEntitySecretNameCaptor.getAllValues.toArray.toList should be(
@@ -315,7 +325,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
           val updateRequest = entityAndUpdateRequest.updateEntityRequest
           val entity = entityAndUpdateRequest.entity
           val oldTitle = entity.title.getOrElse("")
-          val newTitle = updateRequest.titleToChange.getOrElse("")
+          val newTitle = updateRequest.titleToChange
           val oldDescription = entity.description.getOrElse("")
           val newDescription = updateRequest.descriptionToChange.getOrElse("")
           val expectedMessage = s":preservica: Entity ${updateRequest.ref} has been updated\n" +

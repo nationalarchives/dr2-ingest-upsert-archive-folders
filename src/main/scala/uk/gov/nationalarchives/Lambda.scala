@@ -43,7 +43,7 @@ class Lambda extends RequestStreamHandler {
     Fs2Client.entityClient(config.apiUrl)
   }
   val dADynamoDBClient: DADynamoDBClient[IO] = DADynamoDBClient[IO]()
-  private val parentRefNodeName = "ParentRef"
+  private val parentRefNodeName = "Parent"
   private val structuralObject = StructuralObject
   private val securityTagName = "SecurityTag"
   private val sourceId = "SourceId"
@@ -110,7 +110,7 @@ class Lambda extends RequestStreamHandler {
     val updateEntityRequest = folderUpdateRequest.updateEntityRequest
     s""":preservica: Entity ${entity.ref} has been updated
          |*Old title*: ${entity.title.getOrElse("")}
-         |*New title*: ${updateEntityRequest.titleToChange.getOrElse("")}
+         |*New title*: ${updateEntityRequest.titleToChange}
          |*Old description*: ${entity.description.getOrElse("")}
          |*New description*: ${updateEntityRequest.descriptionToChange.getOrElse("")}
          |""".stripMargin
@@ -138,10 +138,16 @@ class Lambda extends RequestStreamHandler {
         if (parentPathSplitBySlash.head.isEmpty || parentPathSplitBySlash.isEmpty) 0 else parentPathSplitBySlash.length
       }
 
-    if (numberOfSlashesInParentPathPerFolder != List(0, 1, 2))
+    val slashesInParentPathsIncreaseByOne: Boolean =
+      numberOfSlashesInParentPathPerFolder.zip(numberOfSlashesInParentPathPerFolder.drop(1)).forall {
+        case (slashesInParentOfParent, slashesInParent) => (slashesInParent - slashesInParentOfParent) == 1
+      }
+
+    if (!slashesInParentPathsIncreaseByOne)
       IO.raiseError {
         new Exception(
-          "The lengths of the parent paths should increase for each subfolder (from 0 to 2); this is not the case"
+          s"The lengths of the parent paths should increase by 1 for each subfolder (from 0 to N); " +
+            s"instead it was ${numberOfSlashesInParentPathPerFolder.mkString(", ")}"
         )
       }
     else IO(numberOfSlashesInParentPathPerFolder)
@@ -213,19 +219,17 @@ class Lambda extends RequestStreamHandler {
       folderInfoOfEntities: List[FullFolderInfo],
       entitiesClient: EntityClient[IO, Fs2Streams[IO]],
       secretName: String,
-      foldersPreviouslyAdded: Map[String, UUID] = Map()
+      previouslyCreatedEntityIdsWithFolderRowIdsAsKeys: Map[String, UUID] = Map()
   ): IO[Unit] = {
     if (folderInfoOfEntities.isEmpty) IO.unit
     else {
       val folderInfo = folderInfoOfEntities.head
-
-      val folderName = folderInfo.folderRow.name
-      val identifiersToAdd = List(Identifier(sourceId, folderName), Identifier("Code", folderName))
-
-      val parentRef = if (folderInfo.expectedParentRef.isEmpty) {
-        val parentId = folderInfo.folderRow.parentPath.split("/").last
-        foldersPreviouslyAdded(parentId).toString
-      } else folderInfo.expectedParentRef
+      val potentialParentRef =
+        if (folderInfo.expectedParentRef.isEmpty) {
+          // 'expectedParentRef' is empty either because parent was not in Preservica at start of Lambda, or folder is top-level
+          val parentId = folderInfo.folderRow.parentPath.split("/").last
+          previouslyCreatedEntityIdsWithFolderRowIdsAsKeys.get(parentId)
+        } else Some(UUID.fromString(folderInfo.expectedParentRef))
 
       val addFolderRequest = AddEntityRequest(
         None,
@@ -233,21 +237,27 @@ class Lambda extends RequestStreamHandler {
         folderInfo.folderRow.description,
         structuralObject,
         Open,
-        Some(UUID.fromString(parentRef))
+        potentialParentRef
       )
+
+      val folderName = folderInfo.folderRow.name
+      val identifiersToAdd = List(Identifier(sourceId, folderName), Identifier("Code", folderName))
+
       for {
         entityId <- entitiesClient.addEntity(addFolderRequest, secretName)
-        _ <- entitiesClient.addIdentifiersForEntity(
-          entityId,
-          structuralObject,
-          identifiersToAdd,
-          secretName
-        )
+        _ <- identifiersToAdd.map { identifierToAdd =>
+          entitiesClient.addIdentifierForEntity(
+            entityId,
+            structuralObject,
+            identifierToAdd,
+            secretName
+          )
+        }.sequence
         _ <- createFolders(
           folderInfoOfEntities.tail,
           entitiesClient,
           secretName,
-          foldersPreviouslyAdded + (folderInfo.folderRow.id -> entityId)
+          previouslyCreatedEntityIdsWithFolderRowIdsAsKeys + (folderInfo.folderRow.id -> entityId)
         )
       } yield ()
     }
@@ -272,9 +282,10 @@ class Lambda extends RequestStreamHandler {
       val entity = folderInfo.entity.get
       val ref = entity.ref
       val isTopLevelFolder = folderInfo.folderRow.parentPath == ""
+      val childNodeNames = (if (isTopLevelFolder) Nil else List(parentRefNodeName)) ++ List(securityTagName)
 
       entitiesClient
-        .nodesFromEntity(ref, structuralObject, List(parentRefNodeName, securityTagName), secretName)
+        .nodesFromEntity(ref, structuralObject, childNodeNames, secretName)
         .flatMap { nodeNamesAndValues =>
           val parentRef = nodeNamesAndValues.getOrElse(parentRefNodeName, "")
 
@@ -305,23 +316,26 @@ class Lambda extends RequestStreamHandler {
       val folderRow = folderInfo.folderRow
       val entity = folderInfo.entity.get
 
-      val updateEntityRequestWithNoUpdates =
-        UpdateEntityRequest(entity.ref, None, None, structuralObject, folderInfo.securityTag.get, None)
+      val potentialNewTitle = folderRow.title
+      val potentialNewDescription = folderRow.description
 
-      val potentiallyUpdatedTitleRequest =
-        if (folderRow.title.getOrElse("") != entity.title.getOrElse(""))
-          updateEntityRequestWithNoUpdates.copy(titleToChange = folderRow.title)
-        else updateEntityRequestWithNoUpdates
-
-      val potentiallyUpdatedTitleOrDescriptionRequest =
-        if (folderRow.description.getOrElse("") != entity.description.getOrElse(""))
-          potentiallyUpdatedTitleRequest.copy(descriptionToChange = folderRow.description)
-        else potentiallyUpdatedTitleRequest
+      val titleHasChanged = potentialNewTitle != entity.title
+      val descriptionHasChanged = potentialNewDescription != entity.description
 
       val updateEntityRequest =
-        if (potentiallyUpdatedTitleOrDescriptionRequest != updateEntityRequestWithNoUpdates)
-          Some(potentiallyUpdatedTitleOrDescriptionRequest)
-        else None
+        if (titleHasChanged || descriptionHasChanged) {
+          val parentRef = Option.when(folderInfo.expectedParentRef != "")(UUID.fromString(folderInfo.expectedParentRef))
+          val updatedTitleOrDescriptionRequest =
+            UpdateEntityRequest(
+              entity.ref,
+              potentialNewTitle.getOrElse(""),
+              if (descriptionHasChanged) potentialNewDescription else None,
+              structuralObject,
+              folderInfo.securityTag.get,
+              parentRef
+            )
+          Some(updatedTitleOrDescriptionRequest)
+        } else None
 
       updateEntityRequest.map(EntityWithUpdateEntityRequest(entity, _))
     }
@@ -342,8 +356,6 @@ object Lambda extends App {
 
   private case class StepFnInput(
       batchId: String,
-      rootPath: String,
-      batchType: String,
       archiveHierarchyFolders: List[String],
       contentFolders: List[String],
       contentAssets: List[String]

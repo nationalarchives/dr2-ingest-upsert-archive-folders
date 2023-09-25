@@ -18,12 +18,14 @@ import java.io.{ByteArrayInputStream, OutputStream}
 class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
   private val mockOutputStream = mock[OutputStream]
 
+  private val parentSo = structuralObjects(0).head.ref
+  private val childSo = structuralObjects(1).head.ref
+  private val grandChildSo = structuralObjects(2).head.ref
+
   private val folderIds = folderIdsAndRows.keys.toList
 
   val mockInput = s"""{
     "batchId": "TDD-2023-ABC",
-    "rootPath": "testservice://testpath/TDD-2023-ABC/",
-    "batchType": "testDocument",
     "archiveHierarchyFolders": [
       "${folderIds.head}",
       "${folderIds(1)}",
@@ -44,7 +46,8 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       val responseWithNoEntity = IO(Seq())
       val mockLambda = MockLambda(
         convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
-        entitiesWithSourceIdReturnValue = defaultEntitiesWithSourceIdReturnValues.updated(2, responseWithNoEntity)
+        entitiesWithSourceIdReturnValue = defaultEntitiesWithSourceIdReturnValues.updated(2, responseWithNoEntity),
+        addEntityReturnValues = List(IO(childSo))
       )
 
       mockLambda.handleRequest(mockInputStream, mockOutputStream, mockContext)
@@ -60,10 +63,60 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             Some("mock description_1_1_1"),
             StructuralObject,
             Open,
-            Some(UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"))
+            Some(childSo)
           )
         ),
-        1
+        2
+      )
+    }
+
+  "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, " +
+    "and 'addEntity' and 'addIdentifiersForEntity' 3x if 3 folder row's Entities were not returned from the 'entitiesByIdentifier' call" + "" +
+    "passing in None as the parentRef for the top-level folder" in {
+      val responseWithNoEntity = IO(Seq())
+      val mockLambda = MockLambda(
+        convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
+        entitiesWithSourceIdReturnValue = List(responseWithNoEntity, responseWithNoEntity, responseWithNoEntity),
+        addEntityReturnValues = List(
+          IO(parentSo),
+          IO(childSo),
+          IO(grandChildSo)
+        )
+      )
+
+      mockLambda.handleRequest(mockInputStream, mockOutputStream, mockContext)
+
+      mockLambda.verifyInvocationsAndArgumentsPassed(
+        folderIdsAndRows,
+        3,
+        0,
+        addEntityRequests = List(
+          AddEntityRequest(
+            None,
+            Some("mock title_1"),
+            Some("mock description_1"),
+            StructuralObject,
+            Open,
+            None
+          ),
+          AddEntityRequest(
+            None,
+            Some("mock title_1_1"),
+            Some("mock description_1_1"),
+            StructuralObject,
+            Open,
+            Some(parentSo)
+          ),
+          AddEntityRequest(
+            None,
+            Some("mock title_1_1_1"),
+            Some("mock description_1_1_1"),
+            StructuralObject,
+            Open,
+            Some(childSo)
+          )
+        ),
+        6
       )
     }
 
@@ -75,7 +128,11 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         MockLambda(
           convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
           entitiesWithSourceIdReturnValue =
-            defaultEntitiesWithSourceIdReturnValues.take(1) ++ List(responseWithNoEntity, responseWithNoEntity)
+            defaultEntitiesWithSourceIdReturnValues.take(1) ++ List(responseWithNoEntity, responseWithNoEntity),
+          addEntityReturnValues = List(
+            IO(childSo),
+            IO(grandChildSo)
+          )
         )
 
       mockLambda.handleRequest(mockInputStream, mockOutputStream, mockContext)
@@ -99,10 +156,10 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             Some("mock description_1_1_1"),
             StructuralObject,
             Open,
-            Some(UUID.fromString("9dfc40be-5f44-4fa1-9c25-fbe03dd3f539"))
+            Some(UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"))
           )
         ),
-        2
+        4
       )
     }
 
@@ -117,7 +174,8 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
           convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
           entitiesWithSourceIdReturnValue = defaultEntitiesWithSourceIdReturnValues
             .updated(0, IO(entityWithAnOldTitle))
-            .updated(2, responseWithNoEntity)
+            .updated(2, responseWithNoEntity),
+          addEntityReturnValues = List(IO(childSo))
         )
 
       mockLambda.handleRequest(mockInputStream, mockOutputStream, mockContext)
@@ -136,13 +194,13 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             Some(UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"))
           )
         ),
-        1,
+        2,
         updateEntityRequests = List(
           EntityWithUpdateEntityRequest(
             entityWithAnOldTitle.find(_.ref == ref).get,
             UpdateEntityRequest(
               ref,
-              Some("mock title_1"),
+              "mock title_1",
               None,
               StructuralObject,
               Open,
@@ -182,7 +240,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             findEntity("d7879799-a7de-4aa6-8c7b-afced66a6c50"),
             UpdateEntityRequest(
               UUID.fromString("d7879799-a7de-4aa6-8c7b-afced66a6c50"),
-              Some("mock title_1"),
+              "mock title_1",
               None,
               StructuralObject,
               Open,
@@ -193,22 +251,22 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             findEntity("a2d39ea3-6216-4f93-b078-62c7896b174c"),
             UpdateEntityRequest(
               UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"),
-              None,
+              "mock title_1_1",
               Some("mock description_1_1"),
               StructuralObject,
               Open,
-              None
+              Some(UUID.fromString("d7879799-a7de-4aa6-8c7b-afced66a6c50"))
             )
           ),
           EntityWithUpdateEntityRequest(
             findEntity("9dfc40be-5f44-4fa1-9c25-fbe03dd3f539"),
             UpdateEntityRequest(
               UUID.fromString("9dfc40be-5f44-4fa1-9c25-fbe03dd3f539"),
-              Some("mock title_1_1_1"),
+              "mock title_1_1_1",
               Some("mock description_1_1_1"),
               StructuralObject,
               Open,
-              None
+              Some(UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"))
             )
           )
         )
@@ -254,10 +312,10 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
 
   "handleRequest" should "call the DDB client's 'getItems' method and throw an exception when sorted parent folder path length isn't '0, 1, 2'" in {
     val lastElementFolderRow = folderIdsAndRows("93f5a200-9ee7-423d-827c-aad823182ad2")
-    val lastElementFolderRowsWithToShortOfAParentPath =
+    val lastElementFolderRowsWithTooShortOfAParentPath =
       lastElementFolderRow.copy(parentPath = "e88e433a-1f3e-48c5-b15f-234c0e663c27")
     val folderIdsAndRowsWithParentPathMistake =
-      folderIdsAndRows + ("93f5a200-9ee7-423d-827c-aad823182ad2" -> lastElementFolderRowsWithToShortOfAParentPath)
+      folderIdsAndRows + ("93f5a200-9ee7-423d-827c-aad823182ad2" -> lastElementFolderRowsWithTooShortOfAParentPath)
 
     val mockLambda = MockLambda(convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRowsWithParentPathMistake))
 
@@ -266,7 +324,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
     }
 
     thrownException.getMessage should be(
-      "The lengths of the parent paths should increase for each subfolder (from 0 to 2); this is not the case"
+      "The lengths of the parent paths should increase by 1 for each subfolder (from 0 to N); instead it was 0, 1, 1"
     )
 
     mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRowsWithParentPathMistake, 0, 0)
@@ -361,7 +419,11 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         MockLambda(
           convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
           entitiesWithSourceIdReturnValue = defaultEntitiesWithSourceIdReturnValues.updated(2, responseWithNoEntity),
-          addEntityReturnValue = IO.raiseError(new Exception("API has encountered an issue adding entity"))
+          addEntityReturnValues = List(
+            IO.raiseError(new Exception("API has encountered an issue adding entity")),
+            IO.raiseError(new Exception("API has encountered an issue adding entity")),
+            IO.raiseError(new Exception("API has encountered an issue adding entity"))
+          )
         )
 
       val thrownException = intercept[Exception] {
@@ -381,7 +443,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             Some("mock description_1_1_1"),
             StructuralObject,
             Open,
-            Some(UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"))
+            Some(childSo)
           )
         )
       )
@@ -394,6 +456,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         MockLambda(
           convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
           entitiesWithSourceIdReturnValue = defaultEntitiesWithSourceIdReturnValues.updated(2, responseWithNoEntity),
+          addEntityReturnValues = List(IO(childSo)),
           addIdentifierReturnValue = IO.raiseError(new Exception("API has encountered an issue adding identifier"))
         )
 
@@ -417,7 +480,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             Some(UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"))
           )
         ),
-        1
+        2
       )
     }
 
@@ -450,9 +513,9 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       val mockLambda = MockLambda(
         convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
         getParentFolderRefAndSecurityTagReturnValue = List(
-          IO(Map("ParentRef" -> "562530e3-3b6e-435a-8b56-1d3ad4868a9a", "SecurityTag" -> "open")),
-          IO(Map("ParentRef" -> "an-unexpected-parent-ref", "SecurityTag" -> "open")),
-          IO(Map("ParentRef" -> "a2d39ea3-6216-4f93-b078-62c7896b174c", "SecurityTag" -> "open"))
+          IO(Map("Parent" -> "562530e3-3b6e-435a-8b56-1d3ad4868a9a", "SecurityTag" -> "open")),
+          IO(Map("Parent" -> "an-unexpected-parent-ref", "SecurityTag" -> "open")),
+          IO(Map("Parent" -> "a2d39ea3-6216-4f93-b078-62c7896b174c", "SecurityTag" -> "open"))
         )
       )
 
@@ -473,9 +536,9 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       val mockLambda = MockLambda(
         convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
         getParentFolderRefAndSecurityTagReturnValue = List(
-          IO(Map("ParentRef" -> "562530e3-3b6e-435a-8b56-1d3ad4868a9a")),
-          IO(Map("ParentRef" -> "d7879799-a7de-4aa6-8c7b-afced66a6c50", "SecurityTag" -> "open")),
-          IO(Map("ParentRef" -> "a2d39ea3-6216-4f93-b078-62c7896b174c", "SecurityTag" -> "open"))
+          IO(Map("Parent" -> "562530e3-3b6e-435a-8b56-1d3ad4868a9a")),
+          IO(Map("Parent" -> "d7879799-a7de-4aa6-8c7b-afced66a6c50", "SecurityTag" -> "open")),
+          IO(Map("Parent" -> "a2d39ea3-6216-4f93-b078-62c7896b174c", "SecurityTag" -> "open"))
         )
       )
 
@@ -495,9 +558,9 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       val mockLambda = MockLambda(
         convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
         getParentFolderRefAndSecurityTagReturnValue = List(
-          IO(Map("ParentRef" -> "562530e3-3b6e-435a-8b56-1d3ad4868a9a", "SecurityTag" -> "unexpectedTag")),
-          IO(Map("ParentRef" -> "d7879799-a7de-4aa6-8c7b-afced66a6c50", "SecurityTag" -> "open")),
-          IO(Map("ParentRef" -> "a2d39ea3-6216-4f93-b078-62c7896b174c", "SecurityTag" -> "open"))
+          IO(Map("Parent" -> "562530e3-3b6e-435a-8b56-1d3ad4868a9a", "SecurityTag" -> "unexpectedTag")),
+          IO(Map("Parent" -> "d7879799-a7de-4aa6-8c7b-afced66a6c50", "SecurityTag" -> "open")),
+          IO(Map("Parent" -> "a2d39ea3-6216-4f93-b078-62c7896b174c", "SecurityTag" -> "open"))
         )
       )
 
@@ -537,7 +600,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             entityWithAnOldTitle.find(_.ref == ref).get,
             UpdateEntityRequest(
               ref,
-              Some("mock title_1"),
+              "mock title_1",
               None,
               StructuralObject,
               Open,
