@@ -8,6 +8,7 @@ import org.mockito.ArgumentMatchers.any
 import org.mockito.MockitoSugar.{mock, times, verify, when}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers._
+import org.scalatest.prop.{TableDrivenPropertyChecks, TableFor6}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scanamo.DynamoFormat
 import software.amazon.awssdk.services.eventbridge.model.PutEventsResponse
@@ -22,7 +23,11 @@ import scala.jdk.CollectionConverters._
 import java.util.UUID
 import scala.collection.immutable.ListMap
 
-class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with BeforeAndAfterAll {
+class ExternalServicesTestUtils
+    extends AnyFlatSpec
+    with BeforeAndAfterEach
+    with BeforeAndAfterAll
+    with TableDrivenPropertyChecks {
 
   val folderIdsAndRows: ListMap[String, GetItemsResponse] = ListMap(
     "f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176" ->
@@ -84,6 +89,94 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
 
   val defaultEntitiesWithSourceIdReturnValues: List[IO[Seq[Entity]]] =
     List(IO(structuralObjects(0)), IO(structuralObjects(1)), IO(structuralObjects(2)))
+
+  val missingTitleInDbScenarios
+      : TableFor6[String, Option[String], Option[String], Option[String], Option[String], String] = Table(
+    (
+      "Test",
+      "Title from DB",
+      "Title from Preservica",
+      "Description from DB",
+      "Description from Preservica",
+      "Test result"
+    ),
+    (
+      "title not found in DB, title was found in Preservica but no description updates necessary",
+      None,
+      Some(""),
+      Some("mock description_1"),
+      Some("mock description_1"),
+      "make no calls to 'updateEntity'"
+    ),
+    (
+      "title not found in DB, title was found in Preservica but description needs to be updated",
+      None,
+      Some(""),
+      Some("mock description_1"),
+      Some("mock description_old_1"),
+      "call to updateEntity to update description, using existing Entity title as 'title'"
+    ),
+    (
+      "title and description not found in DB, title and description found in Preservica",
+      None,
+      Some(""),
+      None,
+      Some(""),
+      "make no calls to 'updateEntity'"
+    ),
+    (
+      "title and description not found in DB, title found in Preservica but not description",
+      None,
+      Some(""),
+      None,
+      None,
+      "make no calls to 'updateEntity'"
+    )
+  )
+
+  val missingDescriptionInDbScenarios
+      : TableFor6[String, Option[String], Option[String], Option[String], Option[String], String] = Table(
+    (
+      "Test",
+      "Title from DB",
+      "Title from Preservica",
+      "Description from DB",
+      "Description from Preservica",
+      "Test result"
+    ),
+    (
+      "description not found in DB, description was found in Preservica but no title updates necessary",
+      Some("mock title_1"),
+      Some("mock title_1"),
+      None,
+      Some(""),
+      "make no calls to 'updateEntity'"
+    ),
+    (
+      "description not found in DB, description was found in Preservica but title needs to be updated",
+      Some("mock title_1"),
+      Some("mock title_old_1"),
+      None,
+      Some(""),
+      "call to updateEntity to update title, using None as the 'description'"
+    ),
+    (
+      "description not found in DB, description not found in Preservica but no title updates necessary",
+      Some("mock title_1"),
+      Some("mock title_1"),
+      None,
+      None,
+      "make no calls to 'updateEntity'"
+    ),
+    (
+      "description not found in DB, description not found in Preservica but title needs to be updated",
+      Some("mock title_1"),
+      Some("mock title_old_1"),
+      None,
+      None,
+      "call to updateEntity to update title, using None as the 'description'"
+    )
+  )
 
   case class MockLambda(
       getAttributeValuesReturnValue: IO[List[GetItemsResponse]],

@@ -312,11 +312,11 @@ class Lambda extends RequestStreamHandler {
       val folderRow = folderInfo.folderRow
       val entity = folderInfo.entity.get
 
-      val potentialNewTitle = folderRow.title
+      val potentialNewTitle = folderRow.title.orElse(entity.title)
       val potentialNewDescription = folderRow.description
 
-      val titleHasChanged = potentialNewTitle != entity.title
-      val descriptionHasChanged = potentialNewDescription != entity.description
+      val titleHasChanged = potentialNewTitle != entity.title && potentialNewTitle.nonEmpty
+      val descriptionHasChanged = potentialNewDescription != entity.description && potentialNewDescription.nonEmpty
 
       val updateEntityRequest =
         if (titleHasChanged || descriptionHasChanged) {
@@ -324,7 +324,7 @@ class Lambda extends RequestStreamHandler {
           val updatedTitleOrDescriptionRequest =
             UpdateEntityRequest(
               entity.ref,
-              potentialNewTitle.getOrElse(""),
+              potentialNewTitle.get,
               if (descriptionHasChanged) potentialNewDescription else None,
               structuralObject,
               folderInfo.securityTag.get,
