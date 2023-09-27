@@ -164,6 +164,42 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
     }
 
   "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, " +
+    "and 'addEntity' once (and addIdentifiersForEntity 2x) using the name instead of the title if the folder's title was not found " +
+    "and a folder row's Entity was not returned from the 'entitiesByIdentifier' call " in {
+      val folderIdsAndRows1stIdModified = folderIdsAndRows.map { case (folderId, response) =>
+        if (folderId == "93f5a200-9ee7-423d-827c-aad823182ad2")
+          folderId -> response.copy(name = "mock name_1_1_1", title = None)
+        else folderId -> response
+      }
+      val responseWithNoEntity = IO(Seq())
+      val mockLambda =
+        MockLambda(
+          convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows1stIdModified),
+          entitiesWithSourceIdReturnValue = defaultEntitiesWithSourceIdReturnValues.updated(2, responseWithNoEntity),
+          addEntityReturnValues = List(IO(grandChildSo))
+        )
+
+      mockLambda.handleRequest(mockInputStream, mockOutputStream, mockContext)
+
+      mockLambda.verifyInvocationsAndArgumentsPassed(
+        folderIdsAndRows1stIdModified,
+        3,
+        2,
+        addEntityRequests = List(
+          AddEntityRequest(
+            None,
+            "mock name_1_1_1",
+            Some("mock description_1_1_1"),
+            StructuralObject,
+            Open,
+            Some(UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"))
+          )
+        ),
+        2
+      )
+    }
+
+  "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, " +
     "'addEntity' and 'addIdentifiersForEntity' once if 1 folder row's Entity was not returned from the 'entitiesByIdentifier', " +
     "'nodesFromEntity' 2x and 'updateEntity' once if folder's title is different from what's DDB" in {
       val ref = UUID.fromString("d7879799-a7de-4aa6-8c7b-afced66a6c50")

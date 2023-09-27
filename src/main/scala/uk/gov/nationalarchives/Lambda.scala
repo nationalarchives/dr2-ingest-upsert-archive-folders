@@ -231,7 +231,7 @@ class Lambda extends RequestStreamHandler {
 
       val addFolderRequest = AddEntityRequest(
         None,
-        folderInfo.folderRow.title,
+        folderInfo.folderRow.title.getOrElse(folderInfo.folderRow.name),
         folderInfo.folderRow.description,
         structuralObject,
         Open,
