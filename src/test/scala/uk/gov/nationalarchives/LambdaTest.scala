@@ -59,7 +59,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         addEntityRequests = List(
           AddEntityRequest(
             None,
-            Some("mock title_1_1_1"),
+            "mock title_1_1_1",
             Some("mock description_1_1_1"),
             StructuralObject,
             Open,
@@ -93,7 +93,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         addEntityRequests = List(
           AddEntityRequest(
             None,
-            Some("mock title_1"),
+            "mock title_1",
             Some("mock description_1"),
             StructuralObject,
             Open,
@@ -101,7 +101,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
           ),
           AddEntityRequest(
             None,
-            Some("mock title_1_1"),
+            "mock title_1_1",
             Some("mock description_1_1"),
             StructuralObject,
             Open,
@@ -109,7 +109,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
           ),
           AddEntityRequest(
             None,
-            Some("mock title_1_1_1"),
+            "mock title_1_1_1",
             Some("mock description_1_1_1"),
             StructuralObject,
             Open,
@@ -144,7 +144,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         addEntityRequests = List(
           AddEntityRequest(
             None,
-            Some("mock title_1_1"),
+            "mock title_1_1",
             Some("mock description_1_1"),
             StructuralObject,
             Open,
@@ -152,7 +152,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
           ),
           AddEntityRequest(
             None,
-            Some("mock title_1_1_1"),
+            "mock title_1_1_1",
             Some("mock description_1_1_1"),
             StructuralObject,
             Open,
@@ -187,7 +187,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         addEntityRequests = List(
           AddEntityRequest(
             None,
-            Some("mock title_1_1_1"),
+            "mock title_1_1_1",
             Some("mock description_1_1_1"),
             StructuralObject,
             Open,
@@ -439,7 +439,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         addEntityRequests = List(
           AddEntityRequest(
             None,
-            Some("mock title_1_1_1"),
+            "mock title_1_1_1",
             Some("mock description_1_1_1"),
             StructuralObject,
             Open,
@@ -473,7 +473,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         addEntityRequests = List(
           AddEntityRequest(
             None,
-            Some("mock title_1_1_1"),
+            "mock title_1_1_1",
             Some("mock description_1_1_1"),
             StructuralObject,
             Open,

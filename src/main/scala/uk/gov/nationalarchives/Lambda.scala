@@ -40,7 +40,7 @@ class Lambda extends RequestStreamHandler {
   lazy val eventBridgeClient: DAEventBridgeClient[IO] = DAEventBridgeClient[IO]()
 
   lazy val entitiesClientIO: IO[EntityClient[IO, Fs2Streams[IO]]] = configIo.flatMap { config =>
-    Fs2Client.entityClient(config.apiUrl)
+    Fs2Client.entityClient(config.apiUrl, config.secretName)
   }
   val dADynamoDBClient: DADynamoDBClient[IO] = DADynamoDBClient[IO]()
   private val parentRefNodeName = "Parent"
@@ -75,7 +75,7 @@ class Lambda extends RequestStreamHandler {
       entitiesClient <- entitiesClientIO
       secretName = config.secretName
 
-      potentialEntitiesWithSourceId <- getEntitiesByIdentifier(folderRowsSortedByParentPath, entitiesClient, secretName)
+      potentialEntitiesWithSourceId <- getEntitiesByIdentifier(folderRowsSortedByParentPath, entitiesClient)
       folderIdAndInfo <-
         verifyOnlyOneEntityReturnedAndGetFullFolderInfo(folderRowsSortedByParentPath.zip(potentialEntitiesWithSourceId))
       folderInfoWithExpectedParentRef <- getExpectedParentRefForEachFolder(folderIdAndInfo)
@@ -89,8 +89,7 @@ class Lambda extends RequestStreamHandler {
       folderInfoOfEntitiesThatExistWithSecurityTags <-
         verifyExpectedParentFolderMatchesFolderFromApiAndGetSecurityTag(
           folderInfoOfEntitiesThatExist,
-          entitiesClient,
-          secretName
+          entitiesClient
         )
       folderUpdateRequests = findOnlyFoldersThatNeedUpdatingAndCreateRequests(
         folderInfoOfEntitiesThatExistWithSecurityTags
@@ -98,7 +97,7 @@ class Lambda extends RequestStreamHandler {
       _ <- folderUpdateRequests.map { folderUpdateRequest =>
         val message = generateSlackMessage(folderUpdateRequest)
         for {
-          _ <- entitiesClient.updateEntity(folderUpdateRequest.updateEntityRequest, secretName)
+          _ <- entitiesClient.updateEntity(folderUpdateRequest.updateEntityRequest)
           _ <- sendToSlack(message)
         } yield ()
       }.sequence
@@ -110,7 +109,7 @@ class Lambda extends RequestStreamHandler {
     val updateEntityRequest = folderUpdateRequest.updateEntityRequest
     s""":preservica: Entity ${entity.ref} has been updated
          |*Old title*: ${entity.title.getOrElse("")}
-         |*New title*: ${updateEntityRequest.titleToChange}
+         |*New title*: ${updateEntityRequest.title}
          |*Old description*: ${entity.description.getOrElse("")}
          |*New description*: ${updateEntityRequest.descriptionToChange.getOrElse("")}
          |""".stripMargin
@@ -177,11 +176,10 @@ class Lambda extends RequestStreamHandler {
 
   private def getEntitiesByIdentifier(
       folderRowsSortedByParentPath: List[GetItemsResponse],
-      entitiesClient: EntityClient[IO, Fs2Streams[IO]],
-      secretName: String
+      entitiesClient: EntityClient[IO, Fs2Streams[IO]]
   ): IO[List[Seq[Entity]]] =
     folderRowsSortedByParentPath.map { folderRow =>
-      entitiesClient.entitiesByIdentifier(Identifier(sourceId, folderRow.name), secretName)
+      entitiesClient.entitiesByIdentifier(Identifier(sourceId, folderRow.name))
     }.sequence
 
   private def verifyOnlyOneEntityReturnedAndGetFullFolderInfo(
@@ -244,13 +242,12 @@ class Lambda extends RequestStreamHandler {
       val identifiersToAdd = List(Identifier(sourceId, folderName), Identifier("Code", folderName))
 
       for {
-        entityId <- entitiesClient.addEntity(addFolderRequest, secretName)
+        entityId <- entitiesClient.addEntity(addFolderRequest)
         _ <- identifiersToAdd.map { identifierToAdd =>
           entitiesClient.addIdentifierForEntity(
             entityId,
             structuralObject,
-            identifierToAdd,
-            secretName
+            identifierToAdd
           )
         }.sequence
         _ <- createFolders(
@@ -275,8 +272,7 @@ class Lambda extends RequestStreamHandler {
 
   private def verifyExpectedParentFolderMatchesFolderFromApiAndGetSecurityTag(
       folderInfoOfEntitiesThatExist: List[FullFolderInfo],
-      entitiesClient: EntityClient[IO, Fs2Streams[IO]],
-      secretName: String
+      entitiesClient: EntityClient[IO, Fs2Streams[IO]]
   ): IO[List[FullFolderInfo]] =
     folderInfoOfEntitiesThatExist.map { folderInfo =>
       val entity = folderInfo.entity.get
@@ -285,7 +281,7 @@ class Lambda extends RequestStreamHandler {
       val childNodeNames = (if (isTopLevelFolder) Nil else List(parentRefNodeName)) ++ List(securityTagName)
 
       entitiesClient
-        .nodesFromEntity(ref, structuralObject, childNodeNames, secretName)
+        .nodesFromEntity(ref, structuralObject, childNodeNames)
         .flatMap { nodeNamesAndValues =>
           val parentRef = nodeNamesAndValues.getOrElse(parentRefNodeName, "")
 
