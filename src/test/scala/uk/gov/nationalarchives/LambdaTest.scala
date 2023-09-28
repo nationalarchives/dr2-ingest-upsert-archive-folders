@@ -59,7 +59,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         addEntityRequests = List(
           AddEntityRequest(
             None,
-            Some("mock title_1_1_1"),
+            "mock title_1_1_1",
             Some("mock description_1_1_1"),
             StructuralObject,
             Open,
@@ -93,7 +93,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         addEntityRequests = List(
           AddEntityRequest(
             None,
-            Some("mock title_1"),
+            "mock title_1",
             Some("mock description_1"),
             StructuralObject,
             Open,
@@ -101,7 +101,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
           ),
           AddEntityRequest(
             None,
-            Some("mock title_1_1"),
+            "mock title_1_1",
             Some("mock description_1_1"),
             StructuralObject,
             Open,
@@ -109,7 +109,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
           ),
           AddEntityRequest(
             None,
-            Some("mock title_1_1_1"),
+            "mock title_1_1_1",
             Some("mock description_1_1_1"),
             StructuralObject,
             Open,
@@ -144,7 +144,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         addEntityRequests = List(
           AddEntityRequest(
             None,
-            Some("mock title_1_1"),
+            "mock title_1_1",
             Some("mock description_1_1"),
             StructuralObject,
             Open,
@@ -152,7 +152,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
           ),
           AddEntityRequest(
             None,
-            Some("mock title_1_1_1"),
+            "mock title_1_1_1",
             Some("mock description_1_1_1"),
             StructuralObject,
             Open,
@@ -162,6 +162,70 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         4
       )
     }
+
+  "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, " +
+    "and 'addEntity' once (and addIdentifiersForEntity 2x) using the name instead of the title if the folder's title was not found " +
+    "and a folder row's Entity was not returned from the 'entitiesByIdentifier' call " in {
+      val folderIdsAndRows1stIdModified = folderIdsAndRows.map { case (folderId, response) =>
+        if (folderId == "93f5a200-9ee7-423d-827c-aad823182ad2")
+          folderId -> response.copy(name = "mock name_1_1_1", title = None)
+        else folderId -> response
+      }
+      val responseWithNoEntity = IO(Seq())
+      val mockLambda =
+        MockLambda(
+          convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows1stIdModified),
+          entitiesWithSourceIdReturnValue = defaultEntitiesWithSourceIdReturnValues.updated(2, responseWithNoEntity),
+          addEntityReturnValues = List(IO(grandChildSo))
+        )
+
+      mockLambda.handleRequest(mockInputStream, mockOutputStream, mockContext)
+
+      mockLambda.verifyInvocationsAndArgumentsPassed(
+        folderIdsAndRows1stIdModified,
+        3,
+        2,
+        addEntityRequests = List(
+          AddEntityRequest(
+            None,
+            "mock name_1_1_1",
+            Some("mock description_1_1_1"),
+            StructuralObject,
+            Open,
+            Some(UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"))
+          )
+        ),
+        2
+      )
+    }
+
+  forAll(missingTitleInDbScenarios) {
+    (test, titleFromDb, titleFromPreservica, descriptionFromDb, descriptionFromPreservica, result) =>
+      "handleRequest" should s"call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, 'nodesFromEntity' 3x and $result if $test" in {
+        missingTitleAndDescriptionTestSetup(
+          titleFromPreservica,
+          descriptionFromPreservica,
+          titleFromDb,
+          descriptionFromDb,
+          result,
+          titleFromPreservica.get
+        )
+      }
+  }
+
+  forAll(missingDescriptionInDbScenarios) {
+    (test, titleFromDb, titleFromPreservica, descriptionFromDb, descriptionFromPreservica, result) =>
+      "handleRequest" should s"call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, 'nodesFromEntity' 3x and $result if $test" in {
+        missingTitleAndDescriptionTestSetup(
+          titleFromPreservica,
+          descriptionFromPreservica,
+          titleFromDb,
+          descriptionFromDb,
+          result,
+          titleFromDb.get
+        )
+      }
+  }
 
   "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, " +
     "'addEntity' and 'addIdentifiersForEntity' once if 1 folder row's Entity was not returned from the 'entitiesByIdentifier', " +
@@ -187,7 +251,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         addEntityRequests = List(
           AddEntityRequest(
             None,
-            Some("mock title_1_1_1"),
+            "mock title_1_1_1",
             Some("mock description_1_1_1"),
             StructuralObject,
             Open,
@@ -439,7 +503,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         addEntityRequests = List(
           AddEntityRequest(
             None,
-            Some("mock title_1_1_1"),
+            "mock title_1_1_1",
             Some("mock description_1_1_1"),
             StructuralObject,
             Open,
@@ -473,7 +537,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         addEntityRequests = List(
           AddEntityRequest(
             None,
-            Some("mock title_1_1_1"),
+            "mock title_1_1_1",
             Some("mock description_1_1_1"),
             StructuralObject,
             Open,
@@ -610,4 +674,55 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         )
       )
     }
+
+  private def missingTitleAndDescriptionTestSetup(
+      titleFromPreservica: Option[String],
+      descriptionFromPreservica: Option[String],
+      titleFromDb: Option[String],
+      descriptionFromDb: Option[String],
+      result: String,
+      titleToUpdate: String
+  ): Unit = {
+
+    val entityWithAnOldTitle =
+      structuralObjects(0).map(_.copy(title = titleFromPreservica, description = descriptionFromPreservica))
+
+    val folderIdsAndRows1stIdModified = folderIdsAndRows.map { case (folderId, response) =>
+      if (folderId == "f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176")
+        folderId -> response.copy(title = titleFromDb, description = descriptionFromDb)
+      else folderId -> response
+    }
+
+    val mockLambda =
+      MockLambda(
+        convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows1stIdModified),
+        entitiesWithSourceIdReturnValue = defaultEntitiesWithSourceIdReturnValues.updated(0, IO(entityWithAnOldTitle))
+      )
+
+    mockLambda.handleRequest(mockInputStream, mockOutputStream, mockContext)
+
+    val updateRequest =
+      if (result == "make no calls to 'updateEntity'") Nil
+      else
+        List(
+          EntityWithUpdateEntityRequest(
+            entityWithAnOldTitle.head,
+            UpdateEntityRequest(
+              UUID.fromString("d7879799-a7de-4aa6-8c7b-afced66a6c50"),
+              titleToUpdate,
+              descriptionFromDb,
+              StructuralObject,
+              Open,
+              None
+            )
+          )
+        )
+
+    mockLambda.verifyInvocationsAndArgumentsPassed(
+      folderIdsAndRows1stIdModified,
+      3,
+      3,
+      updateEntityRequests = updateRequest
+    )
+  }
 }
