@@ -43,9 +43,7 @@ class Lambda extends RequestStreamHandler {
     Fs2Client.entityClient(config.apiUrl, config.secretName)
   }
   val dADynamoDBClient: DADynamoDBClient[IO] = DADynamoDBClient[IO]()
-  private val parentRefNodeName = "Parent"
   private val structuralObject = StructuralObject
-  private val securityTagName = "SecurityTag"
   private val sourceId = "SourceID"
 
   private val configIo: IO[Config] = ConfigSource.default.loadF[IO, Config]()
@@ -87,10 +85,7 @@ class Lambda extends RequestStreamHandler {
       _ <- verifyEntitiesAreStructuralObjects(folderInfoOfEntitiesThatExist)
 
       folderInfoOfEntitiesThatExistWithSecurityTags <-
-        verifyExpectedParentFolderMatchesFolderFromApiAndGetSecurityTag(
-          folderInfoOfEntitiesThatExist,
-          entitiesClient
-        )
+        verifyExpectedParentFolderMatchesFolderFromApiAndGetSecurityTag(folderInfoOfEntitiesThatExist)
       folderUpdateRequests = findOnlyFoldersThatNeedUpdatingAndCreateRequests(
         folderInfoOfEntitiesThatExistWithSecurityTags
       )
@@ -262,46 +257,44 @@ class Lambda extends RequestStreamHandler {
 
   private def verifyEntitiesAreStructuralObjects(folderInfoOfEntitiesThatExist: List[FullFolderInfo]): IO[List[Unit]] =
     folderInfoOfEntitiesThatExist.map { folderInfo =>
-      val entityType: String = folderInfo.entity.get.entityType.getOrElse("")
-      if (entityType != "SO")
-        IO.raiseError(
-          new Exception(s"The entity type for ${folderInfo.folderRow.id} should be SO but it is $entityType")
-        )
-      else IO.unit
+      val potentialEntityType: Option[EntityClient.EntityType] = folderInfo.entity.flatMap(_.entityType)
+
+      potentialEntityType
+        .collect {
+          case entityType if entityType != StructuralObject =>
+            IO.raiseError(
+              new Exception(
+                s"The entity type for folder id ${folderInfo.folderRow.id} should be 'StructuralObject' but it is $entityType"
+              )
+            )
+          case _ => IO.unit
+        }
+        .getOrElse(IO.raiseError(new Exception(s"There is no entity type for folder id ${folderInfo.folderRow.id}")))
     }.sequence
 
   private def verifyExpectedParentFolderMatchesFolderFromApiAndGetSecurityTag(
-      folderInfoOfEntitiesThatExist: List[FullFolderInfo],
-      entitiesClient: EntityClient[IO, Fs2Streams[IO]]
+      folderInfoOfEntitiesThatExist: List[FullFolderInfo]
   ): IO[List[FullFolderInfo]] =
     folderInfoOfEntitiesThatExist.map { folderInfo =>
       val entity = folderInfo.entity.get
       val ref = entity.ref
-      val isTopLevelFolder = folderInfo.folderRow.parentPath == ""
-      val childNodeNames = (if (isTopLevelFolder) Nil else List(parentRefNodeName)) ++ List(securityTagName)
+      val isNotTopLevelFolder = folderInfo.folderRow.parentPath != ""
+      val parentRef = entity.parent.map(_.toString).getOrElse("")
 
-      entitiesClient
-        .nodesFromEntity(ref, structuralObject, childNodeNames)
-        .flatMap { nodeNamesAndValues =>
-          val parentRef = nodeNamesAndValues.getOrElse(parentRefNodeName, "")
-
-          /* Top-level folder's parentRef will be different from its expectedParentRef (of "") as it's not possible to know
-          parentRef before calling API but since its a top-level folder, we don't have to worry about it not having the correct parent */
-          if (parentRef != folderInfo.expectedParentRef && !isTopLevelFolder)
-            IO.raiseError {
-              new Exception(
-                s"API returned a parent ref of '$parentRef' for entity $ref instead of expected ${folderInfo.expectedParentRef}"
-              )
-            }
-          else {
-            val securityTag: String = nodeNamesAndValues.getOrElse(securityTagName, "")
-            securityTag match {
-              case "open"   => IO(folderInfo.copy(securityTag = Some(Open)))
-              case "closed" => IO(folderInfo.copy(securityTag = Some(Closed)))
-              case unexpectedTag =>
-                IO.raiseError(new Exception(s"Security tag '$unexpectedTag' is unexpected for SO ref '$ref'"))
-            }
-          }
+      /* Top-level folder's parentRef will be different from its expectedParentRef (of "") as it's not possible to know
+      parentRef before calling API but since its a top-level folder, we don't have to worry about it not having the correct parent */
+      if (parentRef != folderInfo.expectedParentRef && isNotTopLevelFolder)
+        IO.raiseError {
+          new Exception(
+            s"API returned a parent ref of '$parentRef' for entity $ref instead of expected ${folderInfo.expectedParentRef}"
+          )
+        }
+      else
+        entity.securityTag match {
+          case open @ Some(Open)     => IO(folderInfo.copy(securityTag = open))
+          case closed @ Some(Closed) => IO(folderInfo.copy(securityTag = closed))
+          case unexpectedTag =>
+            IO.raiseError(new Exception(s"Security tag '$unexpectedTag' is unexpected for SO ref '$ref'"))
         }
     }.sequence
 

@@ -16,7 +16,7 @@ import sttp.capabilities.fs2.Fs2Streams
 import uk.gov.nationalarchives.Lambda.{EntityWithUpdateEntityRequest, GetItemsResponse, PartitionKey}
 import uk.gov.nationalarchives.dp.client.Entities.{Entity, Identifier}
 import uk.gov.nationalarchives.dp.client.EntityClient
-import uk.gov.nationalarchives.dp.client.EntityClient.{AddEntityRequest, StructuralObject, UpdateEntityRequest}
+import uk.gov.nationalarchives.dp.client.EntityClient.{AddEntityRequest, Open, StructuralObject, UpdateEntityRequest}
 import uk.gov.nationalarchives.{DADynamoDBClient, DAEventBridgeClient, Lambda}
 
 import scala.jdk.CollectionConverters._
@@ -57,32 +57,38 @@ class ExternalServicesTestUtils
   val structuralObjects: Map[Int, Seq[Entity]] = Map(
     0 -> Seq(
       Entity(
-        Some("SO"),
+        Some(StructuralObject),
         UUID.fromString("d7879799-a7de-4aa6-8c7b-afced66a6c50"),
         Some("mock title_1"),
         Some("mock description_1"),
         deleted = false,
-        Some(StructuralObject.entityPath)
+        Some(StructuralObject.entityPath),
+        Some(Open),
+        Some(UUID.fromString("562530e3-3b6e-435a-8b56-1d3ad4868a9a"))
       )
     ),
     1 -> Seq(
       Entity(
-        Some("SO"),
+        Some(StructuralObject),
         UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"),
         Some("mock title_1_1"),
         Some("mock description_1_1"),
         deleted = false,
-        Some(StructuralObject.entityPath)
+        Some(StructuralObject.entityPath),
+        Some(Open),
+        Some(UUID.fromString("d7879799-a7de-4aa6-8c7b-afced66a6c50"))
       )
     ),
     2 -> Seq(
       Entity(
-        Some("SO"),
+        Some(StructuralObject),
         UUID.fromString("9dfc40be-5f44-4fa1-9c25-fbe03dd3f539"),
         Some("mock title_1_1_1"),
         Some("mock description_1_1_1"),
         deleted = false,
-        Some(StructuralObject.entityPath)
+        Some(StructuralObject.entityPath),
+        Some(Open),
+        Some(UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"))
       )
     )
   )
@@ -187,11 +193,6 @@ class ExternalServicesTestUtils
         IO(structuralObjects(2).head.ref)
       ),
       addIdentifierReturnValue: IO[String] = IO("The Identifier was added"),
-      getParentFolderRefAndSecurityTagReturnValue: List[IO[Map[String, String]]] = List(
-        IO(Map("Parent" -> "562530e3-3b6e-435a-8b56-1d3ad4868a9a", "SecurityTag" -> "open")),
-        IO(Map("Parent" -> "d7879799-a7de-4aa6-8c7b-afced66a6c50", "SecurityTag" -> "open")),
-        IO(Map("Parent" -> "a2d39ea3-6216-4f93-b078-62c7896b174c", "SecurityTag" -> "open"))
-      ),
       updateEntityReturnValues: IO[String] = IO("Entity was updated")
   ) extends Lambda() {
     val testEventBridgeClient: DAEventBridgeClient[IO] = mock[DAEventBridgeClient[IO]]
@@ -211,7 +212,6 @@ class ExternalServicesTestUtils
     def structuralObjectCaptor: ArgumentCaptor[StructuralObject.type] =
       ArgumentCaptor.forClass(classOf[StructuralObject.type])
     def identifiersToAddCaptor: ArgumentCaptor[Identifier] = ArgumentCaptor.forClass(classOf[Identifier])
-    def childNodesCaptor: ArgumentCaptor[List[String]] = ArgumentCaptor.forClass(classOf[List[String]])
     def getUpdateFolderRequestCaptor: ArgumentCaptor[UpdateEntityRequest] =
       ArgumentCaptor.forClass(classOf[UpdateEntityRequest])
 
@@ -257,12 +257,6 @@ class ExternalServicesTestUtils
         )
       )
         .thenReturn(addIdentifierReturnValue)
-      when(mockEntityClient.nodesFromEntity(any[UUID], any[StructuralObject.type], any[List[String]]))
-        .thenReturn(
-          getParentFolderRefAndSecurityTagReturnValue.head,
-          getParentFolderRefAndSecurityTagReturnValue(1),
-          getParentFolderRefAndSecurityTagReturnValue(2)
-        )
       when(mockEntityClient.updateEntity(any[UpdateEntityRequest]))
         .thenReturn(updateEntityReturnValues)
       IO(mockEntityClient)
@@ -271,7 +265,6 @@ class ExternalServicesTestUtils
     def verifyInvocationsAndArgumentsPassed(
         folderIdsAndRows: Map[String, GetItemsResponse],
         numOfEntitiesByIdentifierInvocations: Int,
-        numOfNodesFromEntityInvocations: Int,
         addEntityRequests: List[AddEntityRequest] = Nil,
         numOfAddIdentifierRequests: Int = 0,
         updateEntityRequests: List[EntityWithUpdateEntityRequest] = Nil
@@ -338,31 +331,6 @@ class ExternalServicesTestUtils
             val folderName = addEntityRequest.title
             List(Identifier("SourceID", folderName), Identifier("Code", folderName))
           }
-        )
-      }
-
-      val nodesFromEntityRefCaptor = getRefCaptor
-      val nodesFromEntityStructuralObjectCaptor = structuralObjectCaptor
-      val nodesFromEntityChildNodesToAddCaptor = childNodesCaptor
-
-      verify(mockEntityClient, times(numOfNodesFromEntityInvocations)).nodesFromEntity(
-        nodesFromEntityRefCaptor.capture(),
-        nodesFromEntityStructuralObjectCaptor.capture(),
-        nodesFromEntityChildNodesToAddCaptor.capture()
-      )
-
-      if (numOfNodesFromEntityInvocations > 0) {
-        val refsOfFoldersThatExistInPreservica = entitiesWithSourceIdReturnValue.collect {
-          case responseIo if responseIo.unsafeRunSync().headOption.nonEmpty => responseIo.unsafeRunSync().head.ref
-        }
-        nodesFromEntityRefCaptor.getAllValues.toArray.toList should be(refsOfFoldersThatExistInPreservica)
-
-        nodesFromEntityStructuralObjectCaptor.getAllValues.toArray.toList should be(
-          List.fill(numOfNodesFromEntityInvocations)(StructuralObject)
-        )
-
-        nodesFromEntityChildNodesToAddCaptor.getAllValues.toArray.toList should be(
-          List("SecurityTag") :: List.fill(numOfNodesFromEntityInvocations - 1)(List("Parent", "SecurityTag"))
         )
       }
 

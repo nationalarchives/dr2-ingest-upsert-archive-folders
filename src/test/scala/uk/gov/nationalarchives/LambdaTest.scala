@@ -3,7 +3,13 @@ package uk.gov.nationalarchives
 import cats.effect.IO
 import com.amazonaws.services.lambda.runtime.Context
 import org.mockito.MockitoSugar
-import uk.gov.nationalarchives.dp.client.EntityClient.{AddEntityRequest, Open, StructuralObject, UpdateEntityRequest}
+import uk.gov.nationalarchives.dp.client.EntityClient.{
+  AddEntityRequest,
+  ContentObject,
+  Open,
+  StructuralObject,
+  UpdateEntityRequest
+}
 
 import java.util.UUID
 import scala.collection.immutable.ListMap
@@ -55,7 +61,6 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       mockLambda.verifyInvocationsAndArgumentsPassed(
         folderIdsAndRows,
         3,
-        2,
         addEntityRequests = List(
           AddEntityRequest(
             None,
@@ -89,7 +94,6 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       mockLambda.verifyInvocationsAndArgumentsPassed(
         folderIdsAndRows,
         3,
-        0,
         addEntityRequests = List(
           AddEntityRequest(
             None,
@@ -140,7 +144,6 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       mockLambda.verifyInvocationsAndArgumentsPassed(
         folderIdsAndRows,
         3,
-        1,
         addEntityRequests = List(
           AddEntityRequest(
             None,
@@ -184,7 +187,6 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       mockLambda.verifyInvocationsAndArgumentsPassed(
         folderIdsAndRows1stIdModified,
         3,
-        2,
         addEntityRequests = List(
           AddEntityRequest(
             None,
@@ -247,7 +249,6 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       mockLambda.verifyInvocationsAndArgumentsPassed(
         folderIdsAndRows,
         3,
-        2,
         addEntityRequests = List(
           AddEntityRequest(
             None,
@@ -297,7 +298,6 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
 
       mockLambda.verifyInvocationsAndArgumentsPassed(
         folderIdsAndRows,
-        3,
         3,
         updateEntityRequests = List(
           EntityWithUpdateEntityRequest(
@@ -349,7 +349,6 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
 
       mockLambda.verifyInvocationsAndArgumentsPassed(
         folderIdsAndRows,
-        3,
         3
       )
     }
@@ -371,7 +370,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
 
       thrownException.getMessage should be("Table name not found")
 
-      mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRows, 0, 0)
+      mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRows, 0)
     }
 
   "handleRequest" should "call the DDB client's 'getItems' method and throw an exception when sorted parent folder path length isn't '0, 1, 2'" in {
@@ -391,7 +390,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       "The lengths of the parent paths should increase by 1 for each subfolder (from 0 to N); instead it was 0, 1, 1"
     )
 
-    mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRowsWithParentPathMistake, 0, 0)
+    mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRowsWithParentPathMistake, 0)
   }
 
   "handleRequest" should "only call the DDB client's 'getItems' method and throw an exception if the parent path of a folder " +
@@ -415,7 +414,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
           "this does not match the id of its presumed parent e88e433a-1f3e-48c5-b15f-234c0e663c27"
       )
 
-      mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRowsWithParentPathMistake, 0, 0)
+      mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRowsWithParentPathMistake, 0)
     }
 
   "handleRequest" should "call the DDB client's 'getAttributeValues' method and call entities client's 'entitiesByIdentifier' method 3x but " +
@@ -432,7 +431,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
 
       thrownException.getMessage should be("API has encountered and issue")
 
-      mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRows, 3, 0)
+      mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRows, 3)
     }
 
   "handleRequest" should "call the DDB client's 'getAttributeValues' method and call entities client's 'entitiesByIdentifier' method 3x " +
@@ -443,7 +442,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
           IO(
             Seq(
               Entity(
-                Some("SO"),
+                Some(StructuralObject),
                 UUID.fromString("d7879799-a7de-4aa6-8c7b-afced66a6c50"),
                 Some("mock title_1"),
                 Some("mock description_1"),
@@ -451,7 +450,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
                 Some(StructuralObject.entityPath)
               ),
               Entity(
-                Some("SO"),
+                Some(StructuralObject),
                 UUID.fromString("124b0e7b-cf01-4d61-b284-c5db1adece32"),
                 Some("mock title_2"),
                 Some("Another SO with the same SourceID description_1"),
@@ -473,7 +472,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
         "There is more than 1 entity with the same SourceID as f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176"
       )
 
-      mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRows, 3, 0)
+      mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRows, 3)
     }
 
   "handleRequest" should "call the DDB client's 'getAttributeValues' method and call entities client's 'entitiesByIdentifier' method 3x " +
@@ -499,7 +498,6 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       mockLambda.verifyInvocationsAndArgumentsPassed(
         folderIdsAndRows,
         3,
-        0,
         addEntityRequests = List(
           AddEntityRequest(
             None,
@@ -533,7 +531,6 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       mockLambda.verifyInvocationsAndArgumentsPassed(
         folderIdsAndRows,
         3,
-        0,
         addEntityRequests = List(
           AddEntityRequest(
             None,
@@ -552,7 +549,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
     "but throw an exception if any of the entities returned from the API are not SOs" in {
       val contentObjectResponse = IO {
         structuralObjects(0).map {
-          _.copy(entityType = Some("CO"), path = Some("content-objects"))
+          _.copy(entityType = Some(ContentObject), path = Some("content-objects"))
         }
       }
 
@@ -566,20 +563,20 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       }
 
       thrownException.getMessage should be(
-        "The entity type for 93f5a200-9ee7-423d-827c-aad823182ad2 should be SO but it is CO"
+        "The entity type for folder id 93f5a200-9ee7-423d-827c-aad823182ad2 should be 'StructuralObject' but it is ContentObject"
       )
 
-      mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRows, 3, 0)
+      mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRows, 3)
     }
 
   "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' and " +
     "'nodesFromEntity' method 3x but throw an exception if any of the parents of the entities' returned, don't match the parents of folders found in the DB" in {
       val mockLambda = MockLambda(
         convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
-        getParentFolderRefAndSecurityTagReturnValue = List(
-          IO(Map("Parent" -> "562530e3-3b6e-435a-8b56-1d3ad4868a9a", "SecurityTag" -> "open")),
-          IO(Map("Parent" -> "an-unexpected-parent-ref", "SecurityTag" -> "open")),
-          IO(Map("Parent" -> "a2d39ea3-6216-4f93-b078-62c7896b174c", "SecurityTag" -> "open"))
+        List(
+          IO(structuralObjects(0)),
+          IO(structuralObjects(1).map(_.copy(parent = Some(UUID.fromString("c5e50662-2b3d-4924-8e4b-53a543800507"))))),
+          IO(structuralObjects(2))
         )
       )
 
@@ -588,21 +585,21 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       }
 
       thrownException.getMessage should be(
-        "API returned a parent ref of 'an-unexpected-parent-ref' for entity a2d39ea3-6216-4f93-b078-62c7896b174c " +
+        "API returned a parent ref of 'c5e50662-2b3d-4924-8e4b-53a543800507' for entity a2d39ea3-6216-4f93-b078-62c7896b174c " +
           "instead of expected d7879799-a7de-4aa6-8c7b-afced66a6c50"
       )
 
-      mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRows, 3, 3)
+      mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRows, 3)
     }
 
   "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' and " +
     "'nodesFromEntity' method 3x but throw an exception if an entity has no security tag" in {
       val mockLambda = MockLambda(
         convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
-        getParentFolderRefAndSecurityTagReturnValue = List(
-          IO(Map("Parent" -> "562530e3-3b6e-435a-8b56-1d3ad4868a9a")),
-          IO(Map("Parent" -> "d7879799-a7de-4aa6-8c7b-afced66a6c50", "SecurityTag" -> "open")),
-          IO(Map("Parent" -> "a2d39ea3-6216-4f93-b078-62c7896b174c", "SecurityTag" -> "open"))
+        List(
+          IO(structuralObjects(0).map(_.copy(securityTag = None))),
+          IO(structuralObjects(1)),
+          IO(structuralObjects(2))
         )
       )
 
@@ -611,20 +608,20 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       }
 
       thrownException.getMessage should be(
-        "Security tag '' is unexpected for SO ref 'd7879799-a7de-4aa6-8c7b-afced66a6c50'"
+        "Security tag 'None' is unexpected for SO ref 'd7879799-a7de-4aa6-8c7b-afced66a6c50'"
       )
 
-      mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRows, 3, 3)
+      mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRows, 3)
     }
 
   "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' and " +
     "'nodesFromEntity' method 3x but throws an exception if an entity has a security tag with a value other that 'open' or 'closed'" in {
       val mockLambda = MockLambda(
         convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
-        getParentFolderRefAndSecurityTagReturnValue = List(
-          IO(Map("Parent" -> "562530e3-3b6e-435a-8b56-1d3ad4868a9a", "SecurityTag" -> "unexpectedTag")),
-          IO(Map("Parent" -> "d7879799-a7de-4aa6-8c7b-afced66a6c50", "SecurityTag" -> "open")),
-          IO(Map("Parent" -> "a2d39ea3-6216-4f93-b078-62c7896b174c", "SecurityTag" -> "open"))
+        List(
+          IO(structuralObjects(0).map(_.copy(securityTag = Some(null)))),
+          IO(structuralObjects(1)),
+          IO(structuralObjects(2))
         )
       )
 
@@ -633,10 +630,10 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       }
 
       thrownException.getMessage should be(
-        "Security tag 'unexpectedTag' is unexpected for SO ref 'd7879799-a7de-4aa6-8c7b-afced66a6c50'"
+        "Security tag 'Some(null)' is unexpected for SO ref 'd7879799-a7de-4aa6-8c7b-afced66a6c50'"
       )
 
-      mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRows, 3, 3)
+      mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRows, 3)
     }
 
   "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier', " +
@@ -657,7 +654,6 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
 
       mockLambda.verifyInvocationsAndArgumentsPassed(
         folderIdsAndRows,
-        3,
         3,
         updateEntityRequests = List(
           EntityWithUpdateEntityRequest(
@@ -720,7 +716,6 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
 
     mockLambda.verifyInvocationsAndArgumentsPassed(
       folderIdsAndRows1stIdModified,
-      3,
       3,
       updateEntityRequests = updateRequest
     )
