@@ -257,7 +257,7 @@ class Lambda extends RequestStreamHandler {
 
   private def verifyEntitiesAreStructuralObjects(folderInfoOfEntitiesThatExist: List[FullFolderInfo]): IO[List[Unit]] =
     folderInfoOfEntitiesThatExist.map { folderInfo =>
-      val potentialEntityType: Option[EntityClient.EntityType] = folderInfo.entity.get.entityType
+      val potentialEntityType: Option[EntityClient.EntityType] = folderInfo.entity.flatMap(_.entityType)
 
       potentialEntityType
         .collect {
