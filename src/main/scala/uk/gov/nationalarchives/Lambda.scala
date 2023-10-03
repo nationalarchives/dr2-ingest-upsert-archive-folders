@@ -46,7 +46,7 @@ class Lambda extends RequestStreamHandler {
   private val parentRefNodeName = "Parent"
   private val structuralObject = StructuralObject
   private val securityTagName = "SecurityTag"
-  private val sourceId = "SourceId"
+  private val sourceId = "SourceID"
 
   private val configIo: IO[Config] = ConfigSource.default.loadF[IO, Config]()
   private implicit val secretRW: default.ReadWriter[StepFnInput] = default.macroRW[StepFnInput]
@@ -188,7 +188,7 @@ class Lambda extends RequestStreamHandler {
     IO {
       potentialEntitiesWithSourceId.map { case (folderRow, potentialEntitiesWithSourceId) =>
         if (potentialEntitiesWithSourceId.length > 1) {
-          throw new Exception(s"There is more than 1 entity with the same SourceId as ${folderRow.id}")
+          throw new Exception(s"There is more than 1 entity with the same SourceID as ${folderRow.id}")
         } else {
           val potentialEntity = potentialEntitiesWithSourceId.headOption
 

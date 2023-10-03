@@ -436,7 +436,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
     }
 
   "handleRequest" should "call the DDB client's 'getAttributeValues' method and call entities client's 'entitiesByIdentifier' method 3x " +
-    "but throw an exception if more than 1 entity has the same SourceId" in {
+    "but throw an exception if more than 1 entity has the same SourceID" in {
       val mockLambda = MockLambda(
         convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
         entitiesWithSourceIdReturnValue = List(
@@ -454,7 +454,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
                 Some("SO"),
                 UUID.fromString("124b0e7b-cf01-4d61-b284-c5db1adece32"),
                 Some("mock title_2"),
-                Some("Another SO with the same SourceId description_1"),
+                Some("Another SO with the same SourceID description_1"),
                 deleted = false,
                 Some(StructuralObject.entityPath)
               )
@@ -470,7 +470,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       }
 
       thrownException.getMessage should be(
-        "There is more than 1 entity with the same SourceId as f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176"
+        "There is more than 1 entity with the same SourceID as f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176"
       )
 
       mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRows, 3, 0)

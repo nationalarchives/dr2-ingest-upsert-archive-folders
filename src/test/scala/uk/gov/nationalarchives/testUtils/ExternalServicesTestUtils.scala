@@ -296,7 +296,7 @@ class ExternalServicesTestUtils
         val folderRows: Iterator[GetItemsResponse] = folderIdsAndRows.values.iterator
 
         entitiesByIdentifierIdentifierToGetCaptor.getAllValues.toArray.toList should be(
-          List.fill(numOfEntitiesByIdentifierInvocations)(Identifier("SourceId", folderRows.next().name))
+          List.fill(numOfEntitiesByIdentifierInvocations)(Identifier("SourceID", folderRows.next().name))
         )
       }
 
@@ -336,7 +336,7 @@ class ExternalServicesTestUtils
         addIdentifiersIdentifiersToAddCaptor.getAllValues.toArray.toList should be(
           addEntityRequests.flatMap { addEntityRequest =>
             val folderName = addEntityRequest.title
-            List(Identifier("SourceId", folderName), Identifier("Code", folderName))
+            List(Identifier("SourceID", folderName), Identifier("Code", folderName))
           }
         )
       }
