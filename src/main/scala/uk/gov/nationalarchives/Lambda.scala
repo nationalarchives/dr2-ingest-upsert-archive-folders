@@ -90,7 +90,7 @@ class Lambda extends RequestStreamHandler {
         folderInfoOfEntitiesThatExistWithSecurityTags
       )
       _ <- folderUpdateRequests.map { folderUpdateRequest =>
-        val message = generateSlackMessage(folderUpdateRequest)
+        val message = generateSlackMessage(config.apiUrl, folderUpdateRequest)
         for {
           _ <- entitiesClient.updateEntity(folderUpdateRequest.updateEntityRequest)
           _ <- sendToSlack(message)
@@ -99,15 +99,32 @@ class Lambda extends RequestStreamHandler {
     } yield ()
   }.unsafeRunSync()
 
-  private def generateSlackMessage(folderUpdateRequest: EntityWithUpdateEntityRequest): String = {
-    val entity = folderUpdateRequest.entity
+  private def generateSlackMessage(
+      preservicaUrl: String,
+      folderUpdateRequest: EntityWithUpdateEntityRequest
+  ): String = {
+    val entity: Entity = folderUpdateRequest.entity
+    val entityTypeShort = entity.entityType
+      .map(_.entityTypeShort)
+      .getOrElse("IO") // We need a default and Preservica don't validate the entity type in the url
+    val entityUrl = s"$preservicaUrl/explorer/explorer.html#properties:$entityTypeShort&${entity.ref}"
     val updateEntityRequest = folderUpdateRequest.updateEntityRequest
-    s""":preservica: Entity ${entity.ref} has been updated
-         |*Old title*: ${entity.title.getOrElse("")}
-         |*New title*: ${updateEntityRequest.title}
-         |*Old description*: ${entity.description.getOrElse("")}
-         |*New description*: ${updateEntityRequest.descriptionToChange.getOrElse("")}
-         |""".stripMargin
+    val firstLine =
+      s""":preservica: <$entityUrl|Entity ${entity.ref}> has been updated
+                                  |""".stripMargin
+
+    def generateMessage(name: String, oldString: String, newString: String) =
+      s"""*Old $name*: $oldString
+         |*New $name*: $newString""".stripMargin
+
+    val titleUpdates = Option.when(entity.title.getOrElse("") != updateEntityRequest.title)(
+      generateMessage("title", entity.title.getOrElse(""), updateEntityRequest.title)
+    )
+    val descriptionUpdates = Option.when(updateEntityRequest.descriptionToChange.isDefined)(
+      generateMessage("description", entity.description.getOrElse(""), updateEntityRequest.descriptionToChange.get)
+    )
+
+    firstLine ++ List(titleUpdates, descriptionUpdates).flatten.mkString("\n")
   }
 
   private def getFolderRowsSortedByParentPath(

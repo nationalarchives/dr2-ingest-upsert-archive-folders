@@ -356,10 +356,22 @@ class ExternalServicesTestUtils
           val entity = entityAndUpdateRequest.entity
           val oldTitle = entity.title.getOrElse("")
           val newTitle = updateRequest.title
+
           val oldDescription = entity.description.getOrElse("")
           val newDescription = updateRequest.descriptionToChange.getOrElse("")
-          val expectedMessage = s":preservica: Entity ${updateRequest.ref} has been updated\n" +
-            s"*Old title*: $oldTitle\n*New title*: $newTitle\n*Old description*: $oldDescription\n*New description*: $newDescription\n"
+          val entityTypeShort = entity.entityType.get.entityTypeShort
+          val url = "http://localhost:9001/explorer/explorer.html#properties"
+          val expectedMessage = if (oldTitle != newTitle && updateRequest.descriptionToChange.isEmpty) {
+            s":preservica: <$url:$entityTypeShort&${entity.ref}|Entity ${entity.ref}> has been updated\n" +
+              s"*Old title*: $oldTitle\n*New title*: $newTitle"
+          } else if (oldTitle == newTitle && updateRequest.descriptionToChange.isDefined) {
+            s":preservica: <$url:$entityTypeShort&${entity.ref}|Entity ${entity.ref}> has been updated\n" +
+              s"*Old description*: $oldDescription\n*New description*: $newDescription"
+          } else {
+            s":preservica: <$url:$entityTypeShort&${entity.ref}|Entity ${entity.ref}> has been updated\n" +
+              s"*Old title*: $oldTitle\n*New title*: $newTitle\n*Old description*: $oldDescription\n*New description*: $newDescription"
+          }
+          val count = sentMessages.count(_ == expectedMessage)
           sentMessages.count(_ == expectedMessage) should equal(1)
         }
       }
