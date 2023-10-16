@@ -341,13 +341,15 @@ class ExternalServicesTestUtils
         updateEntityUpdateFolderRequestCaptor.capture()
       )
 
+      val sentMessages = eventBridgeMessageCaptors.getAllValues.asScala.map(_.slackMessage)
+
       if (numOfUpdateEntityInvocations > 0) {
         updateEntityUpdateFolderRequestCaptor.getAllValues.toArray.toList should be(
           updateEntityRequests.map(_.updateEntityRequest)
         )
+      } else {
+        sentMessages.length should equal(0)
       }
-
-      val sentMessages = eventBridgeMessageCaptors.getAllValues.asScala.map(_.slackMessage)
 
       if (updateEntityReturnValues.attempt.unsafeRunSync().isRight) {
         sentMessages.length should equal(updateEntityRequests.size)
@@ -361,19 +363,21 @@ class ExternalServicesTestUtils
           val newDescription = updateRequest.descriptionToChange.getOrElse("")
           val entityTypeShort = entity.entityType.get.entityTypeShort
           val url = "http://localhost:9001/explorer/explorer.html#properties"
+          val messageFirstLine = s":preservica: <$url:$entityTypeShort&${entity.ref}|Entity ${entity.ref}> has been updated\n"
           val expectedMessage = if (oldTitle != newTitle && updateRequest.descriptionToChange.isEmpty) {
-            s":preservica: <$url:$entityTypeShort&${entity.ref}|Entity ${entity.ref}> has been updated\n" +
+            messageFirstLine +
               s"*Old title*: $oldTitle\n*New title*: $newTitle"
           } else if (oldTitle == newTitle && updateRequest.descriptionToChange.isDefined) {
-            s":preservica: <$url:$entityTypeShort&${entity.ref}|Entity ${entity.ref}> has been updated\n" +
+            messageFirstLine +
               s"*Old description*: $oldDescription\n*New description*: $newDescription"
           } else {
-            s":preservica: <$url:$entityTypeShort&${entity.ref}|Entity ${entity.ref}> has been updated\n" +
+            messageFirstLine +
               s"*Old title*: $oldTitle\n*New title*: $newTitle\n*Old description*: $oldDescription\n*New description*: $newDescription"
           }
-          val count = sentMessages.count(_ == expectedMessage)
           sentMessages.count(_ == expectedMessage) should equal(1)
         }
+      } else {
+        sentMessages.length should equal(0)
       }
       ()
     }
