@@ -341,13 +341,15 @@ class ExternalServicesTestUtils
         updateEntityUpdateFolderRequestCaptor.capture()
       )
 
+      val sentMessages = eventBridgeMessageCaptors.getAllValues.asScala.map(_.slackMessage)
+
       if (numOfUpdateEntityInvocations > 0) {
         updateEntityUpdateFolderRequestCaptor.getAllValues.toArray.toList should be(
           updateEntityRequests.map(_.updateEntityRequest)
         )
+      } else {
+        sentMessages.length should equal(0)
       }
-
-      val sentMessages = eventBridgeMessageCaptors.getAllValues.asScala.map(_.slackMessage)
 
       if (updateEntityReturnValues.attempt.unsafeRunSync().isRight) {
         sentMessages.length should equal(updateEntityRequests.size)
@@ -356,12 +358,27 @@ class ExternalServicesTestUtils
           val entity = entityAndUpdateRequest.entity
           val oldTitle = entity.title.getOrElse("")
           val newTitle = updateRequest.title
+
           val oldDescription = entity.description.getOrElse("")
           val newDescription = updateRequest.descriptionToChange.getOrElse("")
-          val expectedMessage = s":preservica: Entity ${updateRequest.ref} has been updated\n" +
-            s"*Old title*: $oldTitle\n*New title*: $newTitle\n*Old description*: $oldDescription\n*New description*: $newDescription\n"
+          val entityTypeShort = entity.entityType.get.entityTypeShort
+          val url = "http://localhost:9001/explorer/explorer.html#properties"
+          val messageFirstLine =
+            s":preservica: Entity <$url:$entityTypeShort&${entity.ref}|${entity.ref}> has been updated\n"
+          val expectedMessage = if (oldTitle != newTitle && updateRequest.descriptionToChange.isEmpty) {
+            messageFirstLine +
+              s"*Old title*: $oldTitle\n*New title*: $newTitle"
+          } else if (oldTitle == newTitle && updateRequest.descriptionToChange.isDefined) {
+            messageFirstLine +
+              s"*Old description*: $oldDescription\n*New description*: $newDescription"
+          } else {
+            messageFirstLine +
+              s"*Old title*: $oldTitle\n*New title*: $newTitle\n*Old description*: $oldDescription\n*New description*: $newDescription"
+          }
           sentMessages.count(_ == expectedMessage) should equal(1)
         }
+      } else {
+        sentMessages.length should equal(0)
       }
       ()
     }
