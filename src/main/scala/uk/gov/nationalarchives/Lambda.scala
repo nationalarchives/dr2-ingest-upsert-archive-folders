@@ -110,7 +110,7 @@ class Lambda extends RequestStreamHandler {
     val entityUrl = s"$preservicaUrl/explorer/explorer.html#properties:$entityTypeShort&${entity.ref}"
     val updateEntityRequest = folderUpdateRequest.updateEntityRequest
     val firstLine =
-      s""":preservica: <$entityUrl|Entity ${entity.ref}> has been updated
+      s""":preservica: Entity <$entityUrl|${entity.ref}> has been updated
                                   |""".stripMargin
 
     def generateMessage(name: String, oldString: String, newString: String) =

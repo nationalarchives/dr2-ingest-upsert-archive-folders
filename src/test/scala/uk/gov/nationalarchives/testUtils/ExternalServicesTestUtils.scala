@@ -364,7 +364,7 @@ class ExternalServicesTestUtils
           val entityTypeShort = entity.entityType.get.entityTypeShort
           val url = "http://localhost:9001/explorer/explorer.html#properties"
           val messageFirstLine =
-            s":preservica: <$url:$entityTypeShort&${entity.ref}|Entity ${entity.ref}> has been updated\n"
+            s":preservica: Entity <$url:$entityTypeShort&${entity.ref}|${entity.ref}> has been updated\n"
           val expectedMessage = if (oldTitle != newTitle && updateRequest.descriptionToChange.isEmpty) {
             messageFirstLine +
               s"*Old title*: $oldTitle\n*New title*: $newTitle"
