@@ -4,22 +4,24 @@ import cats.effect.IO
 import cats.effect.unsafe.implicits.global
 import cats.implicits._
 import com.amazonaws.services.lambda.runtime.{Context, RequestStreamHandler}
-import org.scanamo.generic.auto.genericDerivedFormat
 import pureconfig._
 import pureconfig.generic.auto._
 import pureconfig.module.catseffect.syntax._
 import software.amazon.awssdk.services.eventbridge.model.PutEventsResponse
 import sttp.capabilities.fs2.Fs2Streams
+import org.scanamo.generic.auto._
 import io.circe.generic.auto._
+import org.scanamo.{DynamoFormat, DynamoReadError, DynamoValue, MissingProperty}
 import uk.gov.nationalarchives.Lambda.{
   Config,
   EntityWithUpdateEntityRequest,
   FullFolderInfo,
   GetItemsResponse,
   PartitionKey,
-  StepFnInput
+  StepFnInput,
+  UpdatedIdentifier
 }
-import uk.gov.nationalarchives.dp.client.Entities.{Entity, Identifier}
+import uk.gov.nationalarchives.dp.client.Entities.{Entity, Identifier, IdentifierResponse}
 import uk.gov.nationalarchives.dp.client.EntityClient
 import uk.gov.nationalarchives.dp.client.EntityClient.{
   AddEntityRequest,
@@ -35,9 +37,32 @@ import upickle.default
 import java.io.{InputStream, OutputStream}
 import java.util.UUID
 import scala.io.Source
+import scala.jdk.CollectionConverters._
 
 class Lambda extends RequestStreamHandler {
   lazy val eventBridgeClient: DAEventBridgeClient[IO] = DAEventBridgeClient[IO]()
+
+  implicit val format: DynamoFormat[GetItemsResponse] = new DynamoFormat[GetItemsResponse] {
+    override def read(av: DynamoValue): Either[DynamoReadError, GetItemsResponse] = {
+      val map = av.toAttributeValue.m().asScala
+      def value(name: String) = map.get(name).map(_.s())
+      def valueOrLeft(name: String) = value(name).toRight(MissingProperty)
+      for {
+        id <- valueOrLeft("id")
+        name <- valueOrLeft("name")
+      } yield {
+        val identifiers = map
+          .filter(_._1.startsWith("id_"))
+          .map { case (name, value) =>
+            Identifier(name.drop(3), value.s())
+          }
+          .toList
+        GetItemsResponse(id, value("parentPath").getOrElse(""), name, value("title"), value("description"), identifiers)
+      }
+    }
+
+    override def write(t: GetItemsResponse): DynamoValue = DynamoValue.nil
+  }
 
   lazy val entitiesClientIO: IO[EntityClient[IO, Fs2Streams[IO]]] = configIo.flatMap { config =>
     Fs2Client.entityClient(config.apiUrl, config.secretName)
@@ -89,8 +114,32 @@ class Lambda extends RequestStreamHandler {
       folderUpdateRequests = findOnlyFoldersThatNeedUpdatingAndCreateRequests(
         folderInfoOfEntitiesThatExistWithSecurityTags
       )
+
+      _ <- folderInfoOfEntitiesThatExistWithSecurityTags.map { fi =>
+        val identifiersFromDynamo = fi.folderRow.identifiers
+        val entity = fi.entity.get
+        for {
+          identifiersFromPreservica <- entitiesClient.getIdentifiersForEntity(entity)
+          updatedIdentifier <- findIdentifiersToUpdate(identifiersFromDynamo, identifiersFromPreservica)
+          identifiersToAdd <- findIdentifiersToAdd(identifiersFromDynamo, identifiersFromPreservica)
+          _ <- identifiersToAdd.map { id =>
+            entitiesClient.addIdentifierForEntity(entity.ref, entity.entityType.getOrElse(StructuralObject), id)
+          }.sequence
+          newIdentifier = updatedIdentifier.map(_.newIdentifier)
+          _ <-
+            if (newIdentifier.nonEmpty) entitiesClient.updateIdentifiers(entity, updatedIdentifier.map(_.newIdentifier))
+            else IO.unit
+          updatedSlackMessage <- generateIdentifierSlackMessage(
+            config.apiUrl,
+            entity,
+            updatedIdentifier,
+            identifiersToAdd
+          )
+          _ <- updatedSlackMessage.map(sendToSlack).sequence
+        } yield ()
+      }.sequence
       _ <- folderUpdateRequests.map { folderUpdateRequest =>
-        val message = generateSlackMessage(config.apiUrl, folderUpdateRequest)
+        val message = generateTitleDescriptionSlackMessage(config.apiUrl, folderUpdateRequest)
         for {
           _ <- entitiesClient.updateEntity(folderUpdateRequest.updateEntityRequest)
           _ <- sendToSlack(message)
@@ -99,19 +148,48 @@ class Lambda extends RequestStreamHandler {
     } yield ()
   }.unsafeRunSync()
 
-  private def generateSlackMessage(
+  private def generateIdentifierSlackMessage(
+      preservicaUrl: String,
+      entity: Entity,
+      updatedIdentifier: Seq[UpdatedIdentifier],
+      addedIdentifiers: Seq[Identifier]
+  ): IO[Option[String]] = IO {
+    if (updatedIdentifier.isEmpty && addedIdentifiers.isEmpty) {
+      None
+    } else
+      Option {
+        val firstLine = generateSlackMessageFirstLine(preservicaUrl, entity)
+        firstLine + updatedIdentifier.headOption
+          .map(_ => "The following identifiers have been updated\n")
+          .getOrElse("") +
+          updatedIdentifier
+            .map { ui =>
+              s"""
+           |*Old value* ${ui.oldIdentifier.identifierName}: ${ui.oldIdentifier.value}
+           |*New value* ${ui.newIdentifier.identifierName}: ${ui.newIdentifier.value}
+           |
+           |""".stripMargin
+            }
+            .mkString("") +
+          addedIdentifiers.headOption.map(_ => "The following identifiers have been added\n").getOrElse("") +
+          addedIdentifiers
+            .map { ai =>
+              s"""
+           |${ai.identifierName}: ${ai.value}
+           |""".stripMargin
+            }
+            .mkString("")
+      }
+
+  }
+
+  private def generateTitleDescriptionSlackMessage(
       preservicaUrl: String,
       folderUpdateRequest: EntityWithUpdateEntityRequest
   ): String = {
     val entity: Entity = folderUpdateRequest.entity
-    val entityTypeShort = entity.entityType
-      .map(_.entityTypeShort)
-      .getOrElse("IO") // We need a default and Preservica don't validate the entity type in the url
-    val entityUrl = s"$preservicaUrl/explorer/explorer.html#properties:$entityTypeShort&${entity.ref}"
+    val firstLine: String = generateSlackMessageFirstLine(preservicaUrl, entity)
     val updateEntityRequest = folderUpdateRequest.updateEntityRequest
-    val firstLine =
-      s""":preservica: Entity <$entityUrl|${entity.ref}> has been updated
-                                  |""".stripMargin
 
     def generateMessage(name: String, oldString: String, newString: String) =
       s"""*Old $name*: $oldString
@@ -125,6 +203,15 @@ class Lambda extends RequestStreamHandler {
     )
 
     firstLine ++ List(titleUpdates, descriptionUpdates).flatten.mkString("\n")
+  }
+
+  private def generateSlackMessageFirstLine(preservicaUrl: String, entity: Entity) = {
+    val entityTypeShort = entity.entityType
+      .map(_.entityTypeShort)
+      .getOrElse("IO") // We need a default and Preservica don't validate the entity type in the url
+    val entityUrl = s"$preservicaUrl/explorer/explorer.html#properties:$entityTypeShort&${entity.ref}"
+    s""":preservica: Entity <$entityUrl|${entity.ref}> has been updated
+                                  |""".stripMargin
   }
 
   private def getFolderRowsSortedByParentPath(
@@ -251,7 +338,7 @@ class Lambda extends RequestStreamHandler {
       )
 
       val folderName = folderInfo.folderRow.name
-      val identifiersToAdd = List(Identifier(sourceId, folderName), Identifier("Code", folderName))
+      val identifiersToAdd = List(Identifier(sourceId, folderName)) ++ folderInfo.folderRow.identifiers
 
       for {
         entityId <- entitiesClient.addEntity(addFolderRequest)
@@ -315,6 +402,26 @@ class Lambda extends RequestStreamHandler {
         }
     }.sequence
 
+  private def findIdentifiersToUpdate(
+      identifiersFromDynamo: Seq[Identifier],
+      identifiersFromPreservica: Seq[IdentifierResponse]
+  ): IO[Seq[UpdatedIdentifier]] = IO {
+    identifiersFromDynamo.flatMap { id =>
+      identifiersFromPreservica
+        .find(pid => pid.identifierName == id.identifierName && pid.value != id.value)
+        .map(pid => UpdatedIdentifier(pid, IdentifierResponse(pid.id, id.identifierName, id.value)))
+    }
+  }
+
+  private def findIdentifiersToAdd(
+      identifiersFromDynamo: Seq[Identifier],
+      identifiersFromPreservica: Seq[IdentifierResponse]
+  ): IO[Seq[Identifier]] = IO {
+    identifiersFromDynamo.filter { id =>
+      !identifiersFromPreservica.exists(pid => pid.identifierName == id.identifierName)
+    }
+  }
+
   private def findOnlyFoldersThatNeedUpdatingAndCreateRequests(
       folderInfoOfEntitiesThatExist: List[FullFolderInfo]
   ): List[EntityWithUpdateEntityRequest] =
@@ -356,7 +463,8 @@ object Lambda extends App {
       parentPath: String,
       name: String,
       title: Option[String],
-      description: Option[String]
+      description: Option[String],
+      identifiers: Seq[Identifier] = Nil
   )
   private case class Config(apiUrl: String, secretName: String, archiveFolderTableName: String)
 
@@ -376,5 +484,10 @@ object Lambda extends App {
   private[nationalarchives] case class EntityWithUpdateEntityRequest(
       entity: Entity,
       updateEntityRequest: UpdateEntityRequest
+  )
+
+  private[nationalarchives] case class UpdatedIdentifier(
+      oldIdentifier: IdentifierResponse,
+      newIdentifier: IdentifierResponse
   )
 }

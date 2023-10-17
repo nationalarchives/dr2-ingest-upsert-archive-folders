@@ -8,13 +8,13 @@ import org.mockito.ArgumentMatchers.any
 import org.mockito.MockitoSugar.{mock, times, verify, when}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers._
-import org.scalatest.prop.{TableDrivenPropertyChecks, TableFor6}
+import org.scalatest.prop.{TableDrivenPropertyChecks, TableFor4, TableFor6}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scanamo.DynamoFormat
 import software.amazon.awssdk.services.eventbridge.model.PutEventsResponse
 import sttp.capabilities.fs2.Fs2Streams
 import uk.gov.nationalarchives.Lambda.{EntityWithUpdateEntityRequest, GetItemsResponse, PartitionKey}
-import uk.gov.nationalarchives.dp.client.Entities.{Entity, Identifier}
+import uk.gov.nationalarchives.dp.client.Entities.{Entity, Identifier, IdentifierResponse}
 import uk.gov.nationalarchives.dp.client.EntityClient
 import uk.gov.nationalarchives.dp.client.EntityClient.{AddEntityRequest, Open, StructuralObject, UpdateEntityRequest}
 import uk.gov.nationalarchives.{DADynamoDBClient, DAEventBridgeClient, Lambda}
@@ -36,21 +36,24 @@ class ExternalServicesTestUtils
         "",
         "mock title_1",
         Some("mock title_1"),
-        Some("mock description_1")
+        Some("mock description_1"),
+        List(Identifier("Code", "code"))
       ),
     "e88e433a-1f3e-48c5-b15f-234c0e663c27" -> GetItemsResponse(
       "e88e433a-1f3e-48c5-b15f-234c0e663c27",
       "f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176",
       "mock title_1_1",
       Some("mock title_1_1"),
-      Some("mock description_1_1")
+      Some("mock description_1_1"),
+      List(Identifier("Code", "code"))
     ),
     "93f5a200-9ee7-423d-827c-aad823182ad2" -> GetItemsResponse(
       "93f5a200-9ee7-423d-827c-aad823182ad2",
       "f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176/e88e433a-1f3e-48c5-b15f-234c0e663c27",
       "mock title_1_1_1",
       Some("mock title_1_1_1"),
-      Some("mock description_1_1_1")
+      Some("mock description_1_1_1"),
+      List(Identifier("Code", "code"))
     )
   )
 
@@ -95,6 +98,8 @@ class ExternalServicesTestUtils
 
   val defaultEntitiesWithSourceIdReturnValues: List[IO[Seq[Entity]]] =
     List(IO(structuralObjects(0)), IO(structuralObjects(1)), IO(structuralObjects(2)))
+
+  val defaultIdentifiersReturnValue: IO[Seq[IdentifierResponse]] = IO(Seq(IdentifierResponse("id", "Code", "code")))
 
   val missingTitleInDbScenarios
       : TableFor6[String, Option[String], Option[String], Option[String], Option[String], String] = Table(
@@ -184,6 +189,29 @@ class ExternalServicesTestUtils
     )
   )
 
+  val identifierScenarios: TableFor4[List[Identifier], List[Identifier], List[Identifier], List[Identifier]] = Table(
+    ("identifierFromDynamo", "identifierFromPreservica", "addIdentifierRequest", "updateIdentifierRequest"),
+    (List(Identifier("Test1", "Value1")), List(Identifier("Test1", "Value1")), Nil, Nil),
+    (
+      List(Identifier("Test1", "Value1")),
+      List(Identifier("Test1", "Value2")),
+      Nil,
+      List(Identifier("Test1", "Value1"))
+    ),
+    (
+      List(Identifier("Test1", "Value1")),
+      List(Identifier("Test2", "Value2")),
+      List(Identifier("Test1", "Value1")),
+      Nil
+    ),
+    (
+      List(Identifier("Test1", "Value1"), Identifier("Test2", "Value2")),
+      List(Identifier("Test2", "Value3")),
+      List(Identifier("Test1", "Value1")),
+      List(Identifier("Test2", "Value2"))
+    )
+  )
+
   case class MockLambda(
       getAttributeValuesReturnValue: IO[List[GetItemsResponse]],
       entitiesWithSourceIdReturnValue: List[IO[Seq[Entity]]] = defaultEntitiesWithSourceIdReturnValues,
@@ -193,7 +221,8 @@ class ExternalServicesTestUtils
         IO(structuralObjects(2).head.ref)
       ),
       addIdentifierReturnValue: IO[String] = IO("The Identifier was added"),
-      updateEntityReturnValues: IO[String] = IO("Entity was updated")
+      updateEntityReturnValues: IO[String] = IO("Entity was updated"),
+      getIdentifiersForEntityReturnValues: IO[Seq[IdentifierResponse]] = defaultIdentifiersReturnValue
   ) extends Lambda() {
     val testEventBridgeClient: DAEventBridgeClient[IO] = mock[DAEventBridgeClient[IO]]
     val eventBridgeMessageCaptors: ArgumentCaptor[Detail] = ArgumentCaptor.forClass(classOf[Detail])
@@ -259,6 +288,10 @@ class ExternalServicesTestUtils
         .thenReturn(addIdentifierReturnValue)
       when(mockEntityClient.updateEntity(any[UpdateEntityRequest]))
         .thenReturn(updateEntityReturnValues)
+      when(mockEntityClient.getIdentifiersForEntity(any[Entity]))
+        .thenReturn(getIdentifiersForEntityReturnValues)
+      when(mockEntityClient.updateIdentifiers(any[Entity], any[Seq[IdentifierResponse]]))
+        .thenReturn(getIdentifiersForEntityReturnValues)
       IO(mockEntityClient)
     }
 
@@ -329,7 +362,7 @@ class ExternalServicesTestUtils
         addIdentifiersIdentifiersToAddCaptor.getAllValues.toArray.toList should be(
           addEntityRequests.flatMap { addEntityRequest =>
             val folderName = addEntityRequest.title
-            List(Identifier("SourceID", folderName), Identifier("Code", folderName))
+            List(Identifier("SourceID", folderName), Identifier("Code", "code"))
           }
         )
       }

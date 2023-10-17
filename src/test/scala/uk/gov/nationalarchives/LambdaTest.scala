@@ -2,10 +2,12 @@ package uk.gov.nationalarchives
 
 import cats.effect.IO
 import com.amazonaws.services.lambda.runtime.Context
-import org.mockito.MockitoSugar
+import org.mockito.ArgumentMatchers.any
+import org.mockito.{ArgumentCaptor, MockitoSugar}
 import uk.gov.nationalarchives.dp.client.EntityClient.{
   AddEntityRequest,
   ContentObject,
+  EntityType,
   Open,
   StructuralObject,
   UpdateEntityRequest
@@ -16,10 +18,11 @@ import scala.collection.immutable.ListMap
 import org.scalatest.matchers.should.Matchers._
 import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException
 import uk.gov.nationalarchives.Lambda.{EntityWithUpdateEntityRequest, GetItemsResponse}
-import uk.gov.nationalarchives.dp.client.Entities.Entity
+import uk.gov.nationalarchives.dp.client.Entities.{Entity, Identifier, IdentifierResponse}
 import uk.gov.nationalarchives.testUtils.ExternalServicesTestUtils
 
 import java.io.{ByteArrayInputStream, OutputStream}
+import scala.jdk.CollectionConverters.ListHasAsScala
 
 class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
   private val mockOutputStream = mock[OutputStream]
@@ -227,6 +230,45 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
           titleFromDb.get
         )
       }
+  }
+
+  forAll(identifierScenarios) {
+    (identifierFromDynamo, identifierFromPreservica, addIdentifierRequest, updateIdentifierRequest) =>
+      {
+        "handleRequest" should s"add ${addIdentifierRequest.map(i => s"${i.identifierName}=${i.value}").mkString(" ")} " +
+          s"and update ${updateIdentifierRequest.map(i => s"${i.identifierName}=${i.value}").mkString(" ")}" in {
+            val rowsWithIdentifiers = ListMap.from(folderIdsAndRows.map { case (id, dynamoResponse) =>
+              (id, dynamoResponse.copy(identifiers = identifierFromDynamo))
+            }.head :: Nil)
+
+            val mockLambda =
+              MockLambda(
+                convertFolderIdsAndRowsToListOfIoRows(rowsWithIdentifiers),
+                getIdentifiersForEntityReturnValues =
+                  IO(identifierFromPreservica.map(idp => IdentifierResponse("id", idp.identifierName, idp.value)))
+              )
+            mockLambda.handleRequest(mockInputStream, mockOutputStream, mockContext)
+
+            val updateCount = if (updateIdentifierRequest.isEmpty) 0 else 1
+            val addIdentifierCaptor: ArgumentCaptor[Identifier] = ArgumentCaptor.forClass(classOf[Identifier])
+            val updateIdentifierCaptor: ArgumentCaptor[Seq[IdentifierResponse]] =
+              ArgumentCaptor.forClass(classOf[Seq[IdentifierResponse]])
+
+            verify(mockLambda.mockEntityClient, times(addIdentifierRequest.size))
+              .addIdentifierForEntity(any[UUID], any[EntityType], addIdentifierCaptor.capture())
+            verify(mockLambda.mockEntityClient, times(updateCount))
+              .updateIdentifiers(any[Entity], updateIdentifierCaptor.capture())
+
+            val addIdentifierValues: List[Identifier] = addIdentifierCaptor.getAllValues.asScala.toList
+            addIdentifierValues should equal(addIdentifierRequest)
+
+            val updateIdentifierValues: Seq[Identifier] = updateIdentifierCaptor.getAllValues.asScala.headOption
+              .getOrElse(Nil)
+              .map(id => Identifier(id.identifierName, id.value))
+            updateIdentifierValues should equal(updateIdentifierRequest)
+          }
+      }
+
   }
 
   "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, " +
