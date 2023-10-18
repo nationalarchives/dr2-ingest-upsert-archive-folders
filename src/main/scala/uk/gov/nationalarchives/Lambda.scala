@@ -127,7 +127,8 @@ class Lambda extends RequestStreamHandler {
           }.sequence
           newIdentifier = updatedIdentifier.map(_.newIdentifier)
           _ <-
-            if (newIdentifier.nonEmpty) entitiesClient.updateEntityIdentifiers(entity, updatedIdentifier.map(_.newIdentifier))
+            if (newIdentifier.nonEmpty)
+              entitiesClient.updateEntityIdentifiers(entity, updatedIdentifier.map(_.newIdentifier))
             else IO.unit
           updatedSlackMessage <- generateIdentifierSlackMessage(
             config.apiUrl,
