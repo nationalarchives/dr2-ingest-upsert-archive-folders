@@ -257,7 +257,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
             verify(mockLambda.mockEntityClient, times(addIdentifierRequest.size))
               .addIdentifierForEntity(any[UUID], any[EntityType], addIdentifierCaptor.capture())
             verify(mockLambda.mockEntityClient, times(updateCount))
-              .updateIdentifiers(any[Entity], updateIdentifierCaptor.capture())
+              .updateEntityIdentifiers(any[Entity], updateIdentifierCaptor.capture())
 
             val addIdentifierValues: List[Identifier] = addIdentifierCaptor.getAllValues.asScala.toList
             addIdentifierValues should equal(addIdentifierRequest)

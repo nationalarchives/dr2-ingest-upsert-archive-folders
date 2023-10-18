@@ -288,9 +288,9 @@ class ExternalServicesTestUtils
         .thenReturn(addIdentifierReturnValue)
       when(mockEntityClient.updateEntity(any[UpdateEntityRequest]))
         .thenReturn(updateEntityReturnValues)
-      when(mockEntityClient.getIdentifiersForEntity(any[Entity]))
+      when(mockEntityClient.getEntityIdentifiers(any[Entity]))
         .thenReturn(getIdentifiersForEntityReturnValues)
-      when(mockEntityClient.updateIdentifiers(any[Entity], any[Seq[IdentifierResponse]]))
+      when(mockEntityClient.updateEntityIdentifiers(any[Entity], any[Seq[IdentifierResponse]]))
         .thenReturn(getIdentifiersForEntityReturnValues)
       IO(mockEntityClient)
     }
