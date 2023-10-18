@@ -119,7 +119,7 @@ class Lambda extends RequestStreamHandler {
         val identifiersFromDynamo = fi.folderRow.identifiers
         val entity = fi.entity.get
         for {
-          identifiersFromPreservica <- entitiesClient.getIdentifiersForEntity(entity)
+          identifiersFromPreservica <- entitiesClient.getEntityIdentifiers(entity)
           updatedIdentifier <- findIdentifiersToUpdate(identifiersFromDynamo, identifiersFromPreservica)
           identifiersToAdd <- findIdentifiersToAdd(identifiersFromDynamo, identifiersFromPreservica)
           _ <- identifiersToAdd.map { id =>
@@ -127,7 +127,7 @@ class Lambda extends RequestStreamHandler {
           }.sequence
           newIdentifier = updatedIdentifier.map(_.newIdentifier)
           _ <-
-            if (newIdentifier.nonEmpty) entitiesClient.updateIdentifiers(entity, updatedIdentifier.map(_.newIdentifier))
+            if (newIdentifier.nonEmpty) entitiesClient.updateEntityIdentifiers(entity, updatedIdentifier.map(_.newIdentifier))
             else IO.unit
           updatedSlackMessage <- generateIdentifierSlackMessage(
             config.apiUrl,
