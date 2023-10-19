@@ -17,6 +17,7 @@ lazy val root = (project in file(".")).settings(
     mockitoScala,
     preservicaClient,
     pureConfig,
+    dynamoFormatters,
     pureConfigCats,
     scalaTest % Test
   )
