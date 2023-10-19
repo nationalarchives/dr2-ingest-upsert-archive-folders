@@ -11,23 +11,10 @@ import software.amazon.awssdk.services.eventbridge.model.PutEventsResponse
 import sttp.capabilities.fs2.Fs2Streams
 import io.circe.generic.auto._
 import uk.gov.nationalarchives.DynamoFormatters._
-import uk.gov.nationalarchives.Lambda.{
-  Config,
-  EntityWithUpdateEntityRequest,
-  FullFolderInfo,
-  StepFnInput,
-  IdentifierToUpdate
-}
+import uk.gov.nationalarchives.Lambda.{Config, EntityWithUpdateEntityRequest, FullFolderInfo, StepFnInput, IdentifierToUpdate}
 import uk.gov.nationalarchives.dp.client.Entities.{Entity, IdentifierResponse}
 import uk.gov.nationalarchives.dp.client.EntityClient
-import uk.gov.nationalarchives.dp.client.EntityClient.{
-  AddEntityRequest,
-  Closed,
-  Open,
-  SecurityTag,
-  StructuralObject,
-  UpdateEntityRequest
-}
+import uk.gov.nationalarchives.dp.client.EntityClient.{AddEntityRequest, Closed, Open, SecurityTag, StructuralObject, UpdateEntityRequest}
 import uk.gov.nationalarchives.dp.client.fs2.Fs2Client
 import upickle.default
 
@@ -124,10 +111,10 @@ class Lambda extends RequestStreamHandler {
   }.unsafeRunSync()
 
   private def generateIdentifierSlackMessage(
-                                              preservicaUrl: String,
-                                              entity: Entity,
-                                              updatedIdentifier: Seq[IdentifierToUpdate],
-                                              addedIdentifiers: Seq[Identifier]
+      preservicaUrl: String,
+      entity: Entity,
+      updatedIdentifier: Seq[IdentifierToUpdate],
+      addedIdentifiers: Seq[Identifier]
   ): IO[Option[String]] = IO {
     if (updatedIdentifier.isEmpty && addedIdentifiers.isEmpty) {
       None
@@ -137,24 +124,24 @@ class Lambda extends RequestStreamHandler {
         val potentialUpdatedHeader = updatedIdentifier.headOption
           .map(_ => "The following identifiers have been updated\n")
           .getOrElse("")
-          val updatedIdentifierMessage = updatedIdentifier
-            .map { ui =>
-                     s"""
+        val updatedIdentifierMessage = updatedIdentifier
+          .map { ui =>
+            s"""
                      |*Old value* ${ui.oldIdentifier.identifierName}: ${ui.oldIdentifier.value}
                      |*New value* ${ui.newIdentifier.identifierName}: ${ui.newIdentifier.value}
                      |
                      |""".stripMargin
-            }
-            .mkString("")
-          val potentialAddIdentifiersHeader =  addedIdentifiers.headOption.map(_ => "The following identifiers have been added\n").getOrElse("")
-          val addedIdentifiersMessage = addedIdentifiers
-            .map { ai =>
-                    s"""
+          }
+          .mkString("")
+        val potentialAddIdentifiersHeader = addedIdentifiers.headOption.map(_ => "The following identifiers have been added\n").getOrElse("")
+        val addedIdentifiersMessage = addedIdentifiers
+          .map { ai =>
+            s"""
                     |${ai.identifierName}: ${ai.value}
                     |""".stripMargin
-            }
-            .mkString("")
-          firstLine + potentialUpdatedHeader + updatedIdentifierMessage + potentialAddIdentifiersHeader + addedIdentifiersMessage
+          }
+          .mkString("")
+        firstLine + potentialUpdatedHeader + updatedIdentifierMessage + potentialAddIdentifiersHeader + addedIdentifiersMessage
       }
 
   }
@@ -398,9 +385,11 @@ class Lambda extends RequestStreamHandler {
       identifiersFromDynamo: Seq[Identifier],
       identifiersFromPreservica: Seq[IdentifierResponse]
   ): IO[Seq[Identifier]] = IO {
-    identifiersFromDynamo.filterNot { id =>
-      identifiersFromPreservica.exists(pid => pid.identifierName == id.identifierName)
-    }.map(id => Identifier(id.identifierName, id.value))
+    identifiersFromDynamo
+      .filterNot { id =>
+        identifiersFromPreservica.exists(pid => pid.identifierName == id.identifierName)
+      }
+      .map(id => Identifier(id.identifierName, id.value))
   }
 
   private def findOnlyFoldersThatNeedUpdatingAndCreateRequests(

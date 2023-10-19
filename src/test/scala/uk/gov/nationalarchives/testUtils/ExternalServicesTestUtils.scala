@@ -24,11 +24,7 @@ import scala.jdk.CollectionConverters._
 import java.util.UUID
 import scala.collection.immutable.ListMap
 
-class ExternalServicesTestUtils
-    extends AnyFlatSpec
-    with BeforeAndAfterEach
-    with BeforeAndAfterAll
-    with TableDrivenPropertyChecks {
+class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with BeforeAndAfterAll with TableDrivenPropertyChecks {
 
   val folderIdsAndRows: ListMap[UUID, DynamoTable] = ListMap(
     UUID.fromString("f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176") ->
@@ -108,8 +104,7 @@ class ExternalServicesTestUtils
 
   val defaultIdentifiersReturnValue: IO[Seq[IdentifierResponse]] = IO(Seq(IdentifierResponse("id", "Code", "code")))
 
-  val missingTitleInDbScenarios
-      : TableFor6[String, Option[String], Option[String], Option[String], Option[String], String] = Table(
+  val missingTitleInDbScenarios: TableFor6[String, Option[String], Option[String], Option[String], Option[String], String] = Table(
     (
       "Test",
       "Title from DB",
@@ -152,8 +147,7 @@ class ExternalServicesTestUtils
     )
   )
 
-  val missingDescriptionInDbScenarios
-      : TableFor6[String, Option[String], Option[String], Option[String], Option[String], String] = Table(
+  val missingDescriptionInDbScenarios: TableFor6[String, Option[String], Option[String], Option[String], Option[String], String] = Table(
     (
       "Test",
       "Title from DB",
@@ -205,22 +199,34 @@ class ExternalServicesTestUtils
   val identifierScenarios: TableFor6[List[Identifier], List[Identifier], List[Identifier], List[Identifier], String, String] = Table(
     ("identifierFromDynamo", "identifierFromPreservica", "addIdentifierRequest", "updateIdentifierRequest", "addResult", "updateResult"),
     (singleIdentifier1, singleIdentifier1, Nil, Nil, addIdentifiersDescription(Nil), updateIdentifiersDescription(Nil)),
-    (singleIdentifierDifferentValue, singleIdentifier1,Nil,singleIdentifierDifferentValue, addIdentifiersDescription(Nil), updateIdentifiersDescription(singleIdentifier1)),
-    (singleIdentifier1,singleIdentifier2,singleIdentifier1,Nil, addIdentifiersDescription(singleIdentifier1), updateIdentifiersDescription(Nil)),
-    (multipleIdentifiers, singleIdentifier3,singleIdentifier1,singleIdentifier2, addIdentifiersDescription(singleIdentifier1), updateIdentifiersDescription(singleIdentifier2))
+    (
+      singleIdentifierDifferentValue,
+      singleIdentifier1,
+      Nil,
+      singleIdentifierDifferentValue,
+      addIdentifiersDescription(Nil),
+      updateIdentifiersDescription(singleIdentifier1)
+    ),
+    (singleIdentifier1, singleIdentifier2, singleIdentifier1, Nil, addIdentifiersDescription(singleIdentifier1), updateIdentifiersDescription(Nil)),
+    (
+      multipleIdentifiers,
+      singleIdentifier3,
+      singleIdentifier1,
+      singleIdentifier2,
+      addIdentifiersDescription(singleIdentifier1),
+      updateIdentifiersDescription(singleIdentifier2)
+    )
   )
 
   private def addIdentifiersDescription(identifiers: List[Identifier]) = identifiersTestDescription(identifiers, "add")
   private def updateIdentifiersDescription(identifiers: List[Identifier]) = identifiersTestDescription(identifiers, "update")
   private def identifiersTestDescription(identifiers: List[Identifier], operation: String) =
-    if(identifiers.isEmpty) {
+    if (identifiers.isEmpty) {
       s"not $operation any identifiers"
     } else {
       val identifiersString = identifiers.map(i => s"${i.identifierName}=${i.value}").mkString(" ")
       s"add $identifiersString"
     }
-
-
 
   case class MockLambda(
       getAttributeValuesReturnValue: IO[List[DynamoTable]],

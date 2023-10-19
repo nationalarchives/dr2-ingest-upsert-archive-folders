@@ -5,14 +5,7 @@ import com.amazonaws.services.lambda.runtime.Context
 import org.mockito.ArgumentMatchers.any
 import org.mockito.{ArgumentCaptor, MockitoSugar}
 import uk.gov.nationalarchives.DynamoFormatters._
-import uk.gov.nationalarchives.dp.client.EntityClient.{
-  AddEntityRequest,
-  ContentObject,
-  EntityType,
-  Open,
-  StructuralObject,
-  UpdateEntityRequest
-}
+import uk.gov.nationalarchives.dp.client.EntityClient.{AddEntityRequest, ContentObject, EntityType, Open, StructuralObject, UpdateEntityRequest}
 
 import java.util.UUID
 import scala.collection.immutable.ListMap
@@ -135,8 +128,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       val mockLambda =
         MockLambda(
           convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
-          entitiesWithSourceIdReturnValue =
-            defaultEntitiesWithSourceIdReturnValues.take(1) ++ List(responseWithNoEntity, responseWithNoEntity),
+          entitiesWithSourceIdReturnValue = defaultEntitiesWithSourceIdReturnValues.take(1) ++ List(responseWithNoEntity, responseWithNoEntity),
           addEntityReturnValues = List(
             IO(childSo),
             IO(grandChildSo)
@@ -205,45 +197,43 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       )
     }
 
-  forAll(missingTitleInDbScenarios) {
-    (test, titleFromDb, titleFromPreservica, descriptionFromDb, descriptionFromPreservica, result) =>
-      "handleRequest" should s"call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, 'nodesFromEntity' 3x and $result if $test" in {
-        missingTitleAndDescriptionTestSetup(
-          titleFromPreservica,
-          descriptionFromPreservica,
-          titleFromDb,
-          descriptionFromDb,
-          result,
-          titleFromPreservica.get
-        )
-      }
+  forAll(missingTitleInDbScenarios) { (test, titleFromDb, titleFromPreservica, descriptionFromDb, descriptionFromPreservica, result) =>
+    "handleRequest" should s"call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, 'nodesFromEntity' 3x and $result if $test" in {
+      missingTitleAndDescriptionTestSetup(
+        titleFromPreservica,
+        descriptionFromPreservica,
+        titleFromDb,
+        descriptionFromDb,
+        result,
+        titleFromPreservica.get
+      )
+    }
   }
 
-  forAll(missingDescriptionInDbScenarios) {
-    (test, titleFromDb, titleFromPreservica, descriptionFromDb, descriptionFromPreservica, result) =>
-      "handleRequest" should s"call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, 'nodesFromEntity' 3x and $result if $test" in {
-        missingTitleAndDescriptionTestSetup(
-          titleFromPreservica,
-          descriptionFromPreservica,
-          titleFromDb,
-          descriptionFromDb,
-          result,
-          titleFromDb.get
-        )
-      }
+  forAll(missingDescriptionInDbScenarios) { (test, titleFromDb, titleFromPreservica, descriptionFromDb, descriptionFromPreservica, result) =>
+    "handleRequest" should s"call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, 'nodesFromEntity' 3x and $result if $test" in {
+      missingTitleAndDescriptionTestSetup(
+        titleFromPreservica,
+        descriptionFromPreservica,
+        titleFromDb,
+        descriptionFromDb,
+        result,
+        titleFromDb.get
+      )
+    }
   }
 
   forAll(identifierScenarios) {
-    (identifierFromDynamo, identifierFromPreservica, addIdentifierRequest, updateIdentifierRequest, addDescription, updateDescription) => {
-      "handleRequest" should s"$addDescription and $updateDescription" in {
-          val rowsWithIdentifiers = folderIdsAndRows.take(1).map {
-            case (id, dynamoResponse) => id -> dynamoResponse.copy(identifiers = identifierFromDynamo)
+    (identifierFromDynamo, identifierFromPreservica, addIdentifierRequest, updateIdentifierRequest, addDescription, updateDescription) =>
+      {
+        "handleRequest" should s"$addDescription and $updateDescription" in {
+          val rowsWithIdentifiers = folderIdsAndRows.take(1).map { case (id, dynamoResponse) =>
+            id -> dynamoResponse.copy(identifiers = identifierFromDynamo)
           }
           val mockLambda =
             MockLambda(
               convertFolderIdsAndRowsToListOfIoRows(rowsWithIdentifiers),
-              getIdentifiersForEntityReturnValues =
-                IO(identifierFromPreservica.map(idp => IdentifierResponse("id", idp.identifierName, idp.value)))
+              getIdentifiersForEntityReturnValues = IO(identifierFromPreservica.map(idp => IdentifierResponse("id", idp.identifierName, idp.value)))
             )
           mockLambda.handleRequest(mockInputStream, mockOutputStream, mockContext)
 
@@ -435,9 +425,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
     "does not match folder before it (after sorting)" in {
       val lastElementFolderRow = folderIdsAndRows(UUID.fromString("93f5a200-9ee7-423d-827c-aad823182ad2"))
       val lastElementFolderRowsWithIncorrectParentPath =
-        lastElementFolderRow.copy(parentPath =
-          Option("f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176/137bb3f9-3ae4-4e69-9d06-e7d569968ed2")
-        )
+        lastElementFolderRow.copy(parentPath = Option("f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176/137bb3f9-3ae4-4e69-9d06-e7d569968ed2"))
       val folderIdsAndRowsWithParentPathMistake =
         folderIdsAndRows + (UUID.fromString("93f5a200-9ee7-423d-827c-aad823182ad2") -> lastElementFolderRowsWithIncorrectParentPath)
 
@@ -459,8 +447,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
     "throw an exception if the API returns an Exception when attempting to get an entity by its identifier" in {
       val mockLambda = MockLambda(
         convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
-        entitiesWithSourceIdReturnValue =
-          List(IO.raiseError(new Exception("API has encountered and issue")), IO(Nil), IO(Nil))
+        entitiesWithSourceIdReturnValue = List(IO.raiseError(new Exception("API has encountered and issue")), IO(Nil), IO(Nil))
       )
 
       val thrownException = intercept[Exception] {
