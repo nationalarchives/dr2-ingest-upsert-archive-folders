@@ -611,7 +611,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
 
       thrownException.getMessage should be(
         "API returned a parent ref of 'c5e50662-2b3d-4924-8e4b-53a543800507' for entity a2d39ea3-6216-4f93-b078-62c7896b174c " +
-          "instead of expected d7879799-a7de-4aa6-8c7b-afced66a6c50"
+          "instead of expected 'd7879799-a7de-4aa6-8c7b-afced66a6c50'"
       )
 
       mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRows, 3)

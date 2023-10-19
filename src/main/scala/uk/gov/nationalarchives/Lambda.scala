@@ -358,7 +358,7 @@ class Lambda extends RequestStreamHandler {
       if (!folderInfo.expectedParentRef.contains(UUID.fromString(parentRef)) && isNotTopLevelFolder)
         IO.raiseError {
           new Exception(
-            s"API returned a parent ref of '$parentRef' for entity $ref instead of expected ${folderInfo.expectedParentRef.getOrElse("")}"
+            s"API returned a parent ref of '$parentRef' for entity $ref instead of expected '${folderInfo.expectedParentRef.getOrElse("")}'"
           )
         }
       else

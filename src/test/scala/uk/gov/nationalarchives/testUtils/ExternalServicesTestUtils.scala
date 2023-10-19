@@ -191,7 +191,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
   )
 
   private val singleIdentifier1: List[Identifier] = List(Identifier("Test1", "Value1"))
-  private val singleIdentifierDifferentValue: List[Identifier] = List(Identifier("Test1", "Value2"))
+  private val singleIdentifier1DifferentValue: List[Identifier] = List(Identifier("Test1", "Value2"))
   private val singleIdentifier2: List[Identifier] = List(Identifier("Test2", "Value2"))
   private val multipleIdentifiers: List[Identifier] = singleIdentifier1 ++ singleIdentifier2
   private val singleIdentifier3: List[Identifier] = List(Identifier("Test2", "Value3"))
@@ -200,10 +200,10 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
     ("identifierFromDynamo", "identifierFromPreservica", "addIdentifierRequest", "updateIdentifierRequest", "addResult", "updateResult"),
     (singleIdentifier1, singleIdentifier1, Nil, Nil, addIdentifiersDescription(Nil), updateIdentifiersDescription(Nil)),
     (
-      singleIdentifierDifferentValue,
+      singleIdentifier1DifferentValue,
       singleIdentifier1,
       Nil,
-      singleIdentifierDifferentValue,
+      singleIdentifier1DifferentValue,
       addIdentifiersDescription(Nil),
       updateIdentifiersDescription(singleIdentifier1)
     ),
