@@ -2,24 +2,21 @@ package uk.gov.nationalarchives
 
 import cats.effect.IO
 import com.amazonaws.services.lambda.runtime.Context
-import org.mockito.MockitoSugar
-import uk.gov.nationalarchives.dp.client.EntityClient.{
-  AddEntityRequest,
-  ContentObject,
-  Open,
-  StructuralObject,
-  UpdateEntityRequest
-}
+import org.mockito.ArgumentMatchers.any
+import org.mockito.{ArgumentCaptor, MockitoSugar}
+import uk.gov.nationalarchives.DynamoFormatters._
+import uk.gov.nationalarchives.dp.client.EntityClient.{AddEntityRequest, ContentObject, EntityType, Open, StructuralObject, UpdateEntityRequest}
 
 import java.util.UUID
 import scala.collection.immutable.ListMap
 import org.scalatest.matchers.should.Matchers._
 import software.amazon.awssdk.services.dynamodb.model.ResourceNotFoundException
-import uk.gov.nationalarchives.Lambda.{EntityWithUpdateEntityRequest, GetItemsResponse}
-import uk.gov.nationalarchives.dp.client.Entities.Entity
+import uk.gov.nationalarchives.Lambda.EntityWithUpdateEntityRequest
+import uk.gov.nationalarchives.dp.client.Entities.{Entity, IdentifierResponse}
 import uk.gov.nationalarchives.testUtils.ExternalServicesTestUtils
 
 import java.io.{ByteArrayInputStream, OutputStream}
+import scala.jdk.CollectionConverters.ListHasAsScala
 
 class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
   private val mockOutputStream = mock[OutputStream]
@@ -44,7 +41,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
 
   private val mockContext = mock[Context]
 
-  private def convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows: ListMap[String, GetItemsResponse]) =
+  private def convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows: ListMap[UUID, DynamoTable]) =
     IO(folderIdsAndRows.values.toList)
 
   "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, " +
@@ -131,8 +128,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       val mockLambda =
         MockLambda(
           convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
-          entitiesWithSourceIdReturnValue =
-            defaultEntitiesWithSourceIdReturnValues.take(1) ++ List(responseWithNoEntity, responseWithNoEntity),
+          entitiesWithSourceIdReturnValue = defaultEntitiesWithSourceIdReturnValues.take(1) ++ List(responseWithNoEntity, responseWithNoEntity),
           addEntityReturnValues = List(
             IO(childSo),
             IO(grandChildSo)
@@ -170,7 +166,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
     "and 'addEntity' once (and addIdentifiersForEntity 2x) using the name instead of the title if the folder's title was not found " +
     "and a folder row's Entity was not returned from the 'entitiesByIdentifier' call " in {
       val folderIdsAndRows1stIdModified = folderIdsAndRows.map { case (folderId, response) =>
-        if (folderId == "93f5a200-9ee7-423d-827c-aad823182ad2")
+        if (folderId == UUID.fromString("93f5a200-9ee7-423d-827c-aad823182ad2"))
           folderId -> response.copy(name = "mock name_1_1_1", title = None)
         else folderId -> response
       }
@@ -201,31 +197,63 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       )
     }
 
-  forAll(missingTitleInDbScenarios) {
-    (test, titleFromDb, titleFromPreservica, descriptionFromDb, descriptionFromPreservica, result) =>
-      "handleRequest" should s"call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, 'nodesFromEntity' 3x and $result if $test" in {
-        missingTitleAndDescriptionTestSetup(
-          titleFromPreservica,
-          descriptionFromPreservica,
-          titleFromDb,
-          descriptionFromDb,
-          result,
-          titleFromPreservica.get
-        )
-      }
+  forAll(missingTitleInDbScenarios) { (test, titleFromDb, titleFromPreservica, descriptionFromDb, descriptionFromPreservica, result) =>
+    "handleRequest" should s"call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, 'nodesFromEntity' 3x and $result if $test" in {
+      missingTitleAndDescriptionTestSetup(
+        titleFromPreservica,
+        descriptionFromPreservica,
+        titleFromDb,
+        descriptionFromDb,
+        result,
+        titleFromPreservica.get
+      )
+    }
   }
 
-  forAll(missingDescriptionInDbScenarios) {
-    (test, titleFromDb, titleFromPreservica, descriptionFromDb, descriptionFromPreservica, result) =>
-      "handleRequest" should s"call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, 'nodesFromEntity' 3x and $result if $test" in {
-        missingTitleAndDescriptionTestSetup(
-          titleFromPreservica,
-          descriptionFromPreservica,
-          titleFromDb,
-          descriptionFromDb,
-          result,
-          titleFromDb.get
-        )
+  forAll(missingDescriptionInDbScenarios) { (test, titleFromDb, titleFromPreservica, descriptionFromDb, descriptionFromPreservica, result) =>
+    "handleRequest" should s"call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, 'nodesFromEntity' 3x and $result if $test" in {
+      missingTitleAndDescriptionTestSetup(
+        titleFromPreservica,
+        descriptionFromPreservica,
+        titleFromDb,
+        descriptionFromDb,
+        result,
+        titleFromDb.get
+      )
+    }
+  }
+
+  forAll(identifierScenarios) {
+    (identifierFromDynamo, identifierFromPreservica, addIdentifierRequest, updateIdentifierRequest, addDescription, updateDescription) =>
+      {
+        "handleRequest" should s"$addDescription and $updateDescription" in {
+          val rowsWithIdentifiers = folderIdsAndRows.take(1).map { case (id, dynamoResponse) =>
+            id -> dynamoResponse.copy(identifiers = identifierFromDynamo)
+          }
+          val mockLambda =
+            MockLambda(
+              convertFolderIdsAndRowsToListOfIoRows(rowsWithIdentifiers),
+              getIdentifiersForEntityReturnValues = IO(identifierFromPreservica.map(idp => IdentifierResponse("id", idp.identifierName, idp.value)))
+            )
+          mockLambda.handleRequest(mockInputStream, mockOutputStream, mockContext)
+
+          val addIdentifierCaptor: ArgumentCaptor[Identifier] = ArgumentCaptor.forClass(classOf[Identifier])
+          val updateIdentifierCaptor: ArgumentCaptor[Seq[IdentifierResponse]] =
+            ArgumentCaptor.forClass(classOf[Seq[IdentifierResponse]])
+
+          verify(mockLambda.mockEntityClient, times(addIdentifierRequest.size))
+            .addIdentifierForEntity(any[UUID], any[EntityType], addIdentifierCaptor.capture())
+          verify(mockLambda.mockEntityClient, times(updateIdentifierRequest.length))
+            .updateEntityIdentifiers(any[Entity], updateIdentifierCaptor.capture())
+
+          val addIdentifierValues: List[Identifier] = addIdentifierCaptor.getAllValues.asScala.toList
+          addIdentifierValues should equal(addIdentifierRequest)
+
+          val updateIdentifierValues: Seq[Identifier] = updateIdentifierCaptor.getAllValues.asScala.headOption
+            .getOrElse(Nil)
+            .map(id => Identifier(id.identifierName, id.value))
+          updateIdentifierValues should equal(updateIdentifierRequest)
+        }
       }
   }
 
@@ -374,11 +402,11 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
     }
 
   "handleRequest" should "call the DDB client's 'getItems' method and throw an exception when sorted parent folder path length isn't '0, 1, 2'" in {
-    val lastElementFolderRow = folderIdsAndRows("93f5a200-9ee7-423d-827c-aad823182ad2")
+    val lastElementFolderRow = folderIdsAndRows(UUID.fromString("93f5a200-9ee7-423d-827c-aad823182ad2"))
     val lastElementFolderRowsWithTooShortOfAParentPath =
-      lastElementFolderRow.copy(parentPath = "e88e433a-1f3e-48c5-b15f-234c0e663c27")
+      lastElementFolderRow.copy(parentPath = Option("e88e433a-1f3e-48c5-b15f-234c0e663c27"))
     val folderIdsAndRowsWithParentPathMistake =
-      folderIdsAndRows + ("93f5a200-9ee7-423d-827c-aad823182ad2" -> lastElementFolderRowsWithTooShortOfAParentPath)
+      folderIdsAndRows + (UUID.fromString("93f5a200-9ee7-423d-827c-aad823182ad2") -> lastElementFolderRowsWithTooShortOfAParentPath)
 
     val mockLambda = MockLambda(convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRowsWithParentPathMistake))
 
@@ -395,13 +423,11 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
 
   "handleRequest" should "only call the DDB client's 'getItems' method and throw an exception if the parent path of a folder " +
     "does not match folder before it (after sorting)" in {
-      val lastElementFolderRow = folderIdsAndRows("93f5a200-9ee7-423d-827c-aad823182ad2")
+      val lastElementFolderRow = folderIdsAndRows(UUID.fromString("93f5a200-9ee7-423d-827c-aad823182ad2"))
       val lastElementFolderRowsWithIncorrectParentPath =
-        lastElementFolderRow.copy(parentPath =
-          "f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176/137bb3f9-3ae4-4e69-9d06-e7d569968ed2"
-        )
+        lastElementFolderRow.copy(parentPath = Option("f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176/137bb3f9-3ae4-4e69-9d06-e7d569968ed2"))
       val folderIdsAndRowsWithParentPathMistake =
-        folderIdsAndRows + ("93f5a200-9ee7-423d-827c-aad823182ad2" -> lastElementFolderRowsWithIncorrectParentPath)
+        folderIdsAndRows + (UUID.fromString("93f5a200-9ee7-423d-827c-aad823182ad2") -> lastElementFolderRowsWithIncorrectParentPath)
 
       val mockLambda = MockLambda(convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRowsWithParentPathMistake))
 
@@ -421,8 +447,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
     "throw an exception if the API returns an Exception when attempting to get an entity by its identifier" in {
       val mockLambda = MockLambda(
         convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
-        entitiesWithSourceIdReturnValue =
-          List(IO.raiseError(new Exception("API has encountered and issue")), IO(Nil), IO(Nil))
+        entitiesWithSourceIdReturnValue = List(IO.raiseError(new Exception("API has encountered and issue")), IO(Nil), IO(Nil))
       )
 
       val thrownException = intercept[Exception] {
@@ -586,7 +611,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
 
       thrownException.getMessage should be(
         "API returned a parent ref of 'c5e50662-2b3d-4924-8e4b-53a543800507' for entity a2d39ea3-6216-4f93-b078-62c7896b174c " +
-          "instead of expected d7879799-a7de-4aa6-8c7b-afced66a6c50"
+          "instead of expected 'd7879799-a7de-4aa6-8c7b-afced66a6c50'"
       )
 
       mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRows, 3)
@@ -684,7 +709,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       structuralObjects(0).map(_.copy(title = titleFromPreservica, description = descriptionFromPreservica))
 
     val folderIdsAndRows1stIdModified = folderIdsAndRows.map { case (folderId, response) =>
-      if (folderId == "f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176")
+      if (folderId == UUID.fromString("f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176"))
         folderId -> response.copy(title = titleFromDb, description = descriptionFromDb)
       else folderId -> response
     }

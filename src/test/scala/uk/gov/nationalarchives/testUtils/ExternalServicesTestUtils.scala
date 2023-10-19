@@ -13,8 +13,9 @@ import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scanamo.DynamoFormat
 import software.amazon.awssdk.services.eventbridge.model.PutEventsResponse
 import sttp.capabilities.fs2.Fs2Streams
-import uk.gov.nationalarchives.Lambda.{EntityWithUpdateEntityRequest, GetItemsResponse, PartitionKey}
-import uk.gov.nationalarchives.dp.client.Entities.{Entity, Identifier}
+import uk.gov.nationalarchives.Lambda.EntityWithUpdateEntityRequest
+import uk.gov.nationalarchives.DynamoFormatters._
+import uk.gov.nationalarchives.dp.client.Entities.{Entity, IdentifierResponse}
 import uk.gov.nationalarchives.dp.client.EntityClient
 import uk.gov.nationalarchives.dp.client.EntityClient.{AddEntityRequest, Open, StructuralObject, UpdateEntityRequest}
 import uk.gov.nationalarchives.{DADynamoDBClient, DAEventBridgeClient, Lambda}
@@ -23,34 +24,39 @@ import scala.jdk.CollectionConverters._
 import java.util.UUID
 import scala.collection.immutable.ListMap
 
-class ExternalServicesTestUtils
-    extends AnyFlatSpec
-    with BeforeAndAfterEach
-    with BeforeAndAfterAll
-    with TableDrivenPropertyChecks {
+class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with BeforeAndAfterAll with TableDrivenPropertyChecks {
 
-  val folderIdsAndRows: ListMap[String, GetItemsResponse] = ListMap(
-    "f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176" ->
-      GetItemsResponse(
-        "f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176",
-        "",
+  val folderIdsAndRows: ListMap[UUID, DynamoTable] = ListMap(
+    UUID.fromString("f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176") ->
+      DynamoTable(
+        "batchId",
+        UUID.fromString("f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176"),
+        None,
         "mock title_1",
+        ArchiveFolder,
         Some("mock title_1"),
-        Some("mock description_1")
+        Some("mock description_1"),
+        identifiers = List(Identifier("Code", "code"))
       ),
-    "e88e433a-1f3e-48c5-b15f-234c0e663c27" -> GetItemsResponse(
-      "e88e433a-1f3e-48c5-b15f-234c0e663c27",
-      "f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176",
+    UUID.fromString("e88e433a-1f3e-48c5-b15f-234c0e663c27") -> DynamoTable(
+      "batchId",
+      UUID.fromString("e88e433a-1f3e-48c5-b15f-234c0e663c27"),
+      Some("f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176"),
       "mock title_1_1",
+      ArchiveFolder,
       Some("mock title_1_1"),
-      Some("mock description_1_1")
+      Some("mock description_1_1"),
+      identifiers = List(Identifier("Code", "code"))
     ),
-    "93f5a200-9ee7-423d-827c-aad823182ad2" -> GetItemsResponse(
-      "93f5a200-9ee7-423d-827c-aad823182ad2",
-      "f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176/e88e433a-1f3e-48c5-b15f-234c0e663c27",
+    UUID.fromString("93f5a200-9ee7-423d-827c-aad823182ad2") -> DynamoTable(
+      "batchId",
+      UUID.fromString("93f5a200-9ee7-423d-827c-aad823182ad2"),
+      Some("f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176/e88e433a-1f3e-48c5-b15f-234c0e663c27"),
       "mock title_1_1_1",
+      ArchiveFolder,
       Some("mock title_1_1_1"),
-      Some("mock description_1_1_1")
+      Some("mock description_1_1_1"),
+      identifiers = List(Identifier("Code", "code"))
     )
   )
 
@@ -96,8 +102,9 @@ class ExternalServicesTestUtils
   val defaultEntitiesWithSourceIdReturnValues: List[IO[Seq[Entity]]] =
     List(IO(structuralObjects(0)), IO(structuralObjects(1)), IO(structuralObjects(2)))
 
-  val missingTitleInDbScenarios
-      : TableFor6[String, Option[String], Option[String], Option[String], Option[String], String] = Table(
+  val defaultIdentifiersReturnValue: IO[Seq[IdentifierResponse]] = IO(Seq(IdentifierResponse("id", "Code", "code")))
+
+  val missingTitleInDbScenarios: TableFor6[String, Option[String], Option[String], Option[String], Option[String], String] = Table(
     (
       "Test",
       "Title from DB",
@@ -140,8 +147,7 @@ class ExternalServicesTestUtils
     )
   )
 
-  val missingDescriptionInDbScenarios
-      : TableFor6[String, Option[String], Option[String], Option[String], Option[String], String] = Table(
+  val missingDescriptionInDbScenarios: TableFor6[String, Option[String], Option[String], Option[String], Option[String], String] = Table(
     (
       "Test",
       "Title from DB",
@@ -184,8 +190,46 @@ class ExternalServicesTestUtils
     )
   )
 
+  private val singleIdentifier1: List[Identifier] = List(Identifier("Test1", "Value1"))
+  private val singleIdentifier1DifferentValue: List[Identifier] = List(Identifier("Test1", "Value2"))
+  private val singleIdentifier2: List[Identifier] = List(Identifier("Test2", "Value2"))
+  private val multipleIdentifiers: List[Identifier] = singleIdentifier1 ++ singleIdentifier2
+  private val singleIdentifier3: List[Identifier] = List(Identifier("Test2", "Value3"))
+
+  val identifierScenarios: TableFor6[List[Identifier], List[Identifier], List[Identifier], List[Identifier], String, String] = Table(
+    ("identifierFromDynamo", "identifierFromPreservica", "addIdentifierRequest", "updateIdentifierRequest", "addResult", "updateResult"),
+    (singleIdentifier1, singleIdentifier1, Nil, Nil, addIdentifiersDescription(Nil), updateIdentifiersDescription(Nil)),
+    (
+      singleIdentifier1DifferentValue,
+      singleIdentifier1,
+      Nil,
+      singleIdentifier1DifferentValue,
+      addIdentifiersDescription(Nil),
+      updateIdentifiersDescription(singleIdentifier1)
+    ),
+    (singleIdentifier1, singleIdentifier2, singleIdentifier1, Nil, addIdentifiersDescription(singleIdentifier1), updateIdentifiersDescription(Nil)),
+    (
+      multipleIdentifiers,
+      singleIdentifier3,
+      singleIdentifier1,
+      singleIdentifier2,
+      addIdentifiersDescription(singleIdentifier1),
+      updateIdentifiersDescription(singleIdentifier2)
+    )
+  )
+
+  private def addIdentifiersDescription(identifiers: List[Identifier]) = identifiersTestDescription(identifiers, "add")
+  private def updateIdentifiersDescription(identifiers: List[Identifier]) = identifiersTestDescription(identifiers, "update")
+  private def identifiersTestDescription(identifiers: List[Identifier], operation: String) =
+    if (identifiers.isEmpty) {
+      s"not $operation any identifiers"
+    } else {
+      val identifiersString = identifiers.map(i => s"${i.identifierName}=${i.value}").mkString(" ")
+      s"add $identifiersString"
+    }
+
   case class MockLambda(
-      getAttributeValuesReturnValue: IO[List[GetItemsResponse]],
+      getAttributeValuesReturnValue: IO[List[DynamoTable]],
       entitiesWithSourceIdReturnValue: List[IO[Seq[Entity]]] = defaultEntitiesWithSourceIdReturnValues,
       addEntityReturnValues: List[IO[UUID]] = List(
         IO(structuralObjects(0).head.ref),
@@ -193,7 +237,8 @@ class ExternalServicesTestUtils
         IO(structuralObjects(2).head.ref)
       ),
       addIdentifierReturnValue: IO[String] = IO("The Identifier was added"),
-      updateEntityReturnValues: IO[String] = IO("Entity was updated")
+      updateEntityReturnValues: IO[String] = IO("Entity was updated"),
+      getIdentifiersForEntityReturnValues: IO[Seq[IdentifierResponse]] = defaultIdentifiersReturnValue
   ) extends Lambda() {
     val testEventBridgeClient: DAEventBridgeClient[IO] = mock[DAEventBridgeClient[IO]]
     val eventBridgeMessageCaptors: ArgumentCaptor[Detail] = ArgumentCaptor.forClass(classOf[Detail])
@@ -226,8 +271,8 @@ class ExternalServicesTestUtils
 
     override val dADynamoDBClient: DADynamoDBClient[IO] = {
       when(
-        mockDynamoDBClient.getItems[GetItemsResponse, PartitionKey](any[List[PartitionKey]], any[String])(
-          any[DynamoFormat[GetItemsResponse]],
+        mockDynamoDBClient.getItems[DynamoTable, PartitionKey](any[List[PartitionKey]], any[String])(
+          any[DynamoFormat[DynamoTable]],
           any[DynamoFormat[PartitionKey]]
         )
       ).thenReturn(
@@ -259,11 +304,15 @@ class ExternalServicesTestUtils
         .thenReturn(addIdentifierReturnValue)
       when(mockEntityClient.updateEntity(any[UpdateEntityRequest]))
         .thenReturn(updateEntityReturnValues)
+      when(mockEntityClient.getEntityIdentifiers(any[Entity]))
+        .thenReturn(getIdentifiersForEntityReturnValues)
+      when(mockEntityClient.updateEntityIdentifiers(any[Entity], any[Seq[IdentifierResponse]]))
+        .thenReturn(getIdentifiersForEntityReturnValues)
       IO(mockEntityClient)
     }
 
     def verifyInvocationsAndArgumentsPassed(
-        folderIdsAndRows: Map[String, GetItemsResponse],
+        folderIdsAndRows: Map[UUID, DynamoTable],
         numOfEntitiesByIdentifierInvocations: Int,
         addEntityRequests: List[AddEntityRequest] = Nil,
         numOfAddIdentifierRequests: Int = 0,
@@ -271,10 +320,10 @@ class ExternalServicesTestUtils
     ): Unit = {
       val attributesValuesCaptor = getPartitionKeysCaptor
       val tableNameCaptor = getTableNameCaptor
-      verify(mockDynamoDBClient, times(1)).getItems[GetItemsResponse, PartitionKey](
+      verify(mockDynamoDBClient, times(1)).getItems[DynamoTable, PartitionKey](
         attributesValuesCaptor.capture(),
         tableNameCaptor.capture()
-      )(any[DynamoFormat[GetItemsResponse]], any[DynamoFormat[PartitionKey]])
+      )(any[DynamoFormat[DynamoTable]], any[DynamoFormat[PartitionKey]])
       attributesValuesCaptor.getValue.toArray.toList should be(
         folderIdsAndRows.map { case (ids, _) => PartitionKey(ids) }
       )
@@ -286,7 +335,7 @@ class ExternalServicesTestUtils
       )
 
       if (numOfEntitiesByIdentifierInvocations > 0) {
-        val folderRows: Iterator[GetItemsResponse] = folderIdsAndRows.values.iterator
+        val folderRows: Iterator[DynamoTable] = folderIdsAndRows.values.iterator
 
         entitiesByIdentifierIdentifierToGetCaptor.getAllValues.toArray.toList should be(
           List.fill(numOfEntitiesByIdentifierInvocations)(Identifier("SourceID", folderRows.next().name))
@@ -329,7 +378,7 @@ class ExternalServicesTestUtils
         addIdentifiersIdentifiersToAddCaptor.getAllValues.toArray.toList should be(
           addEntityRequests.flatMap { addEntityRequest =>
             val folderName = addEntityRequest.title
-            List(Identifier("SourceID", folderName), Identifier("Code", folderName))
+            List(Identifier("SourceID", folderName), Identifier("Code", "code"))
           }
         )
       }
