@@ -350,12 +350,9 @@ class Lambda extends RequestStreamHandler {
     folderInfoOfEntitiesThatExist.map { folderInfo =>
       val entity = folderInfo.entity.get
       val ref = entity.ref
-      val isNotTopLevelFolder = folderInfo.folderRow.parentPath.isDefined
       val parentRef = entity.parent
 
-      /* Top-level folder's parentRef will be different from its expectedParentRef (of "") as it's not possible to know
-      parentRef before calling API but since its a top-level folder, we don't have to worry about it not having the correct parent */
-      if (parentRef != folderInfo.expectedParentRef && isNotTopLevelFolder)
+      if (parentRef != folderInfo.expectedParentRef)
         IO.raiseError {
           new Exception(
             s"API returned a parent ref of '${parentRef.getOrElse("None")}' for entity $ref instead of expected '${folderInfo.expectedParentRef.getOrElse("")}'"

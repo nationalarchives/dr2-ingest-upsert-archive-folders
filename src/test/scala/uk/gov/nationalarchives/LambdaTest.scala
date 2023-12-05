@@ -618,6 +618,29 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
     }
 
   "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' and " +
+    "'nodesFromEntity' method 2x but throw an exception if the parent ref of the top level folder is populated" in {
+      val mockLambda = MockLambda(
+        convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
+        List(
+          IO(structuralObjects(0).map(_.copy(parent = Some(UUID.fromString("c5e50662-2b3d-4924-8e4b-53a543800507"))))),
+          IO(structuralObjects(1)),
+          IO(structuralObjects(2))
+        )
+      )
+
+      val thrownException = intercept[Exception] {
+        mockLambda.handleRequest(mockInputStream, mockOutputStream, mockContext)
+      }
+
+      thrownException.getMessage should be(
+        "API returned a parent ref of 'c5e50662-2b3d-4924-8e4b-53a543800507' for entity d7879799-a7de-4aa6-8c7b-afced66a6c50 " +
+          "instead of expected ''"
+      )
+
+      mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRows, 3)
+    }
+
+  "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' and " +
     "'nodesFromEntity' method 3x but throw an exception if an entity has no security tag" in {
       val mockLambda = MockLambda(
         convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
