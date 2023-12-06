@@ -37,7 +37,7 @@ class Lambda extends RequestStreamHandler {
   case class Detail(slackMessage: String)
 
   private def sendToSlack(slackMessage: String): IO[PutEventsResponse] =
-    eventBridgeClient.publishEventToEventBridge(getClass.getName, "DR2DevMessage", Detail(slackMessage))
+    eventBridgeClient.publishEventToEventBridge(getClass.getName, "DR2Message", Detail(slackMessage))
 
   override def handleRequest(input: InputStream, output: OutputStream, context: Context): Unit = {
     val rawInput: String = Source.fromInputStream(input).mkString
