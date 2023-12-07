@@ -41,7 +41,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
 
   private val mockContext = mock[Context]
 
-  private def convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows: ListMap[UUID, DynamoTable]) =
+  private def convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows: ListMap[UUID, ArchiveFolderDynamoTable]) =
     IO(folderIdsAndRows.values.toList)
 
   "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, " +
