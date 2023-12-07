@@ -618,7 +618,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
     }
 
   "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier'" +
-    "but throw an exception if the parent ref of the top level folder is populated" in {
+    "but throw an exception if the parent ref of the top-level folder is populated" in {
       val mockLambda = MockLambda(
         convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
         List(
