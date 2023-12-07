@@ -70,7 +70,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
         deleted = false,
         Some(StructuralObject.entityPath),
         Some(Open),
-        Some(UUID.fromString("562530e3-3b6e-435a-8b56-1d3ad4868a9a"))
+        None
       )
     ),
     1 -> Seq(

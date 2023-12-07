@@ -198,7 +198,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
     }
 
   forAll(missingTitleInDbScenarios) { (test, titleFromDb, titleFromPreservica, descriptionFromDb, descriptionFromPreservica, result) =>
-    "handleRequest" should s"call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, 'nodesFromEntity' 3x and $result if $test" in {
+    "handleRequest" should s"call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x and $result if $test" in {
       missingTitleAndDescriptionTestSetup(
         titleFromPreservica,
         descriptionFromPreservica,
@@ -211,7 +211,7 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
   }
 
   forAll(missingDescriptionInDbScenarios) { (test, titleFromDb, titleFromPreservica, descriptionFromDb, descriptionFromPreservica, result) =>
-    "handleRequest" should s"call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, 'nodesFromEntity' 3x and $result if $test" in {
+    "handleRequest" should s"call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x and $result if $test" in {
       missingTitleAndDescriptionTestSetup(
         titleFromPreservica,
         descriptionFromPreservica,
@@ -258,8 +258,8 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
   }
 
   "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, " +
-    "'addEntity' and 'addIdentifiersForEntity' once if 1 folder row's Entity was not returned from the 'entitiesByIdentifier', " +
-    "'nodesFromEntity' 2x and 'updateEntity' once if folder's title is different from what's DDB" in {
+    "'addEntity' and 'addIdentifiersForEntity' once if 1 folder row's Entity was not returned from the 'entitiesByIdentifier' " +
+    "and 'updateEntity' once if folder's title is different from what's DDB" in {
       val ref = UUID.fromString("d7879799-a7de-4aa6-8c7b-afced66a6c50")
       val entityWithAnOldTitle = structuralObjects(0).map(_.copy(title = Some("mock title_old_1")))
       val responseWithNoEntity = IO(Seq())
@@ -304,8 +304,8 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       )
     }
 
-  "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, " +
-    "'nodesFromEntity' 3x and 'updateEntity' for each of the 3 folders' changes (title, description, both) if each folder's " +
+  "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x " +
+    "and 'updateEntity' for each of the 3 folders' changes (title, description, both) if each folder's " +
     "title/description is different from what's DDB" in {
       val entityWithAnOldTitle = structuralObjects(0).map(_.copy(title = Some("mock title_old_1")))
       val entityWithAnOldDescription =
@@ -365,8 +365,8 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       )
     }
 
-  "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x, " +
-    "'nodesFromEntity' 3x but not any add or update methods, if there is no difference between what the API and DDB returned " in {
+  "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' 3x " +
+    "but not any add or update methods, if there is no difference between what the API and DDB returned " in {
       val mockLambda =
         MockLambda(
           convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
@@ -594,8 +594,8 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRows, 3)
     }
 
-  "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' and " +
-    "'nodesFromEntity' method 3x but throw an exception if any of the parents of the entities' returned, don't match the parents of folders found in the DB" in {
+  "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier'" +
+    "but throw an exception if any of the parents of the entities' returned, don't match the parents of folders found in the DB" in {
       val mockLambda = MockLambda(
         convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
         List(
@@ -617,8 +617,31 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRows, 3)
     }
 
-  "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' and " +
-    "'nodesFromEntity' method 3x but throw an exception if an entity has no security tag" in {
+  "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier'" +
+    "but throw an exception if the parent ref of the top-level folder is populated" in {
+      val mockLambda = MockLambda(
+        convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
+        List(
+          IO(structuralObjects(0).map(_.copy(parent = Some(UUID.fromString("c5e50662-2b3d-4924-8e4b-53a543800507"))))),
+          IO(structuralObjects(1)),
+          IO(structuralObjects(2))
+        )
+      )
+
+      val thrownException = intercept[Exception] {
+        mockLambda.handleRequest(mockInputStream, mockOutputStream, mockContext)
+      }
+
+      thrownException.getMessage should be(
+        "API returned a parent ref of 'c5e50662-2b3d-4924-8e4b-53a543800507' for entity d7879799-a7de-4aa6-8c7b-afced66a6c50 " +
+          "instead of expected ''"
+      )
+
+      mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRows, 3)
+    }
+
+  "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' " +
+    "but throw an exception if an entity has no security tag" in {
       val mockLambda = MockLambda(
         convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
         List(
@@ -639,8 +662,8 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRows, 3)
     }
 
-  "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' and " +
-    "'nodesFromEntity' method 3x but throws an exception if an entity has a security tag with a value other that 'open' or 'closed'" in {
+  "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' " +
+    "but throws an exception if an entity has a security tag with a value other that 'open' or 'closed'" in {
       val mockLambda = MockLambda(
         convertFolderIdsAndRowsToListOfIoRows(folderIdsAndRows),
         List(
@@ -661,8 +684,8 @@ class LambdaTest extends ExternalServicesTestUtils with MockitoSugar {
       mockLambda.verifyInvocationsAndArgumentsPassed(folderIdsAndRows, 3)
     }
 
-  "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier', " +
-    "'nodesFromEntity' and 'updateEntity' method 3x but throws an exception if the API returns an Exception when attempting to update an SO" in {
+  "handleRequest" should "call the DDB client's 'getAttributeValues' and entities client's 'entitiesByIdentifier' " +
+    "and 'updateEntity' method 3x but throws an exception if the API returns an Exception when attempting to update an SO" in {
       val entityWithAnOldTitle = structuralObjects(0).map(_.copy(title = Some("mock title_old_1")))
       val ref = UUID.fromString("d7879799-a7de-4aa6-8c7b-afced66a6c50")
       val mockLambda = MockLambda(
