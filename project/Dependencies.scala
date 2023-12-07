@@ -11,7 +11,7 @@ object Dependencies {
   lazy val log4jCore = "org.apache.logging.log4j" % "log4j-core" % logbackVersion
   lazy val log4jTemplateJson = "org.apache.logging.log4j" % "log4j-layout-template-json" % logbackVersion
   lazy val lambdaCore = "com.amazonaws" % "aws-lambda-java-core" % "1.2.3"
-  lazy val lambdaJavaEvents = "com.amazonaws" % "aws-lambda-java-events" % "3.11.3"
+  lazy val lambdaJavaEvents = "com.amazonaws" % "aws-lambda-java-events" % "3.11.4"
   lazy val mockitoScala = "org.mockito" %% "mockito-scala" % mockitoScalaVersion
   lazy val mockitoScalaTest = "org.mockito" %% "mockito-scala-scalatest" % mockitoScalaVersion
   lazy val preservicaClient = "uk.gov.nationalarchives" %% "preservica-client-fs2" % "0.0.30"
