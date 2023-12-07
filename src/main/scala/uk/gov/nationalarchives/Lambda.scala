@@ -182,7 +182,7 @@ class Lambda extends RequestStreamHandler {
       archiveFolderTableName: String
   ): IO[List[DynamoTable]] = {
     val getItemsResponse: IO[List[DynamoTable]] =
-      dADynamoDBClient.getItems[DynamoTable, PartitionKey](
+      dADynamoDBClient.getItems[ArchiveFolderDynamoTable, PartitionKey](
         folderIdPartitionKeysAndValues,
         archiveFolderTableName
       )

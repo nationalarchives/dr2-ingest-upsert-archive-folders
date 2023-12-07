@@ -26,9 +26,9 @@ import scala.collection.immutable.ListMap
 
 class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with BeforeAndAfterAll with TableDrivenPropertyChecks {
 
-  val folderIdsAndRows: ListMap[UUID, DynamoTable] = ListMap(
+  val folderIdsAndRows: ListMap[UUID, ArchiveFolderDynamoTable] = ListMap(
     UUID.fromString("f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176") ->
-      DynamoTable(
+      ArchiveFolderDynamoTable(
         "batchId",
         UUID.fromString("f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176"),
         None,
@@ -36,9 +36,9 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
         ArchiveFolder,
         Some("mock title_1"),
         Some("mock description_1"),
-        identifiers = List(Identifier("Code", "code"))
+        List(Identifier("Code", "code"))
       ),
-    UUID.fromString("e88e433a-1f3e-48c5-b15f-234c0e663c27") -> DynamoTable(
+    UUID.fromString("e88e433a-1f3e-48c5-b15f-234c0e663c27") -> ArchiveFolderDynamoTable(
       "batchId",
       UUID.fromString("e88e433a-1f3e-48c5-b15f-234c0e663c27"),
       Some("f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176"),
@@ -46,9 +46,9 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
       ArchiveFolder,
       Some("mock title_1_1"),
       Some("mock description_1_1"),
-      identifiers = List(Identifier("Code", "code"))
+      List(Identifier("Code", "code"))
     ),
-    UUID.fromString("93f5a200-9ee7-423d-827c-aad823182ad2") -> DynamoTable(
+    UUID.fromString("93f5a200-9ee7-423d-827c-aad823182ad2") -> ArchiveFolderDynamoTable(
       "batchId",
       UUID.fromString("93f5a200-9ee7-423d-827c-aad823182ad2"),
       Some("f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176/e88e433a-1f3e-48c5-b15f-234c0e663c27"),
@@ -56,7 +56,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
       ArchiveFolder,
       Some("mock title_1_1_1"),
       Some("mock description_1_1_1"),
-      identifiers = List(Identifier("Code", "code"))
+      List(Identifier("Code", "code"))
     )
   )
 
@@ -229,7 +229,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
     }
 
   case class MockLambda(
-      getAttributeValuesReturnValue: IO[List[DynamoTable]],
+      getAttributeValuesReturnValue: IO[List[ArchiveFolderDynamoTable]],
       entitiesWithSourceIdReturnValue: List[IO[Seq[Entity]]] = defaultEntitiesWithSourceIdReturnValues,
       addEntityReturnValues: List[IO[UUID]] = List(
         IO(structuralObjects(0).head.ref),
@@ -271,8 +271,8 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
 
     override val dADynamoDBClient: DADynamoDBClient[IO] = {
       when(
-        mockDynamoDBClient.getItems[DynamoTable, PartitionKey](any[List[PartitionKey]], any[String])(
-          any[DynamoFormat[DynamoTable]],
+        mockDynamoDBClient.getItems[ArchiveFolderDynamoTable, PartitionKey](any[List[PartitionKey]], any[String])(
+          any[DynamoFormat[ArchiveFolderDynamoTable]],
           any[DynamoFormat[PartitionKey]]
         )
       ).thenReturn(
@@ -312,7 +312,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
     }
 
     def verifyInvocationsAndArgumentsPassed(
-        folderIdsAndRows: Map[UUID, DynamoTable],
+        folderIdsAndRows: Map[UUID, ArchiveFolderDynamoTable],
         numOfEntitiesByIdentifierInvocations: Int,
         addEntityRequests: List[AddEntityRequest] = Nil,
         numOfAddIdentifierRequests: Int = 0,
@@ -320,10 +320,10 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
     ): Unit = {
       val attributesValuesCaptor = getPartitionKeysCaptor
       val tableNameCaptor = getTableNameCaptor
-      verify(mockDynamoDBClient, times(1)).getItems[DynamoTable, PartitionKey](
+      verify(mockDynamoDBClient, times(1)).getItems[ArchiveFolderDynamoTable, PartitionKey](
         attributesValuesCaptor.capture(),
         tableNameCaptor.capture()
-      )(any[DynamoFormat[DynamoTable]], any[DynamoFormat[PartitionKey]])
+      )(any[DynamoFormat[ArchiveFolderDynamoTable]], any[DynamoFormat[PartitionKey]])
       attributesValuesCaptor.getValue.toArray.toList should be(
         folderIdsAndRows.map { case (ids, _) => PartitionKey(ids) }
       )
@@ -335,7 +335,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
       )
 
       if (numOfEntitiesByIdentifierInvocations > 0) {
-        val folderRows: Iterator[DynamoTable] = folderIdsAndRows.values.iterator
+        val folderRows: Iterator[ArchiveFolderDynamoTable] = folderIdsAndRows.values.iterator
 
         entitiesByIdentifierIdentifierToGetCaptor.getAllValues.toArray.toList should be(
           List.fill(numOfEntitiesByIdentifierInvocations)(Identifier("SourceID", folderRows.next().name))
