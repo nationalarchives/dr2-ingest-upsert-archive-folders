@@ -3,8 +3,8 @@ object Dependencies {
   private val mockitoScalaVersion = "1.17.30"
   private val pureConfigVersion = "0.17.4"
 
-  lazy val awsDynamoDbClient = "uk.gov.nationalarchives" %% "da-dynamodb-client" % "0.1.30"
-  lazy val awsEventBridgeClient = "uk.gov.nationalarchives" %% "da-eventbridge-client" % "0.1.30"
+  lazy val awsDynamoDbClient = "uk.gov.nationalarchives" %% "da-dynamodb-client" % "0.1.32"
+  lazy val awsEventBridgeClient = "uk.gov.nationalarchives" %% "da-eventbridge-client" % "0.1.32"
   lazy val logbackVersion = "2.22.0"
   lazy val dynamoFormatters = "uk.gov.nationalarchives" %% "dynamo-formatters" % "0.0.8"
   lazy val log4jSlf4j = "org.apache.logging.log4j" % "log4j-slf4j2-impl" % logbackVersion
