@@ -10,8 +10,10 @@ import pureconfig.module.catseffect.syntax._
 import software.amazon.awssdk.services.eventbridge.model.PutEventsResponse
 import sttp.capabilities.fs2.Fs2Streams
 import io.circe.generic.auto._
+import org.typelevel.log4cats.{LoggerName, SelfAwareStructuredLogger}
+import org.typelevel.log4cats.slf4j.Slf4jFactory
 import uk.gov.nationalarchives.DynamoFormatters._
-import uk.gov.nationalarchives.Lambda.{Config, EntityWithUpdateEntityRequest, FullFolderInfo, StepFnInput, IdentifierToUpdate}
+import uk.gov.nationalarchives.Lambda.{Config, EntityWithUpdateEntityRequest, FullFolderInfo, IdentifierToUpdate, StepFnInput}
 import uk.gov.nationalarchives.dp.client.Entities.{Entity, IdentifierResponse}
 import uk.gov.nationalarchives.dp.client.EntityClient
 import uk.gov.nationalarchives.dp.client.EntityClient.{AddEntityRequest, Closed, Open, SecurityTag, StructuralObject, UpdateEntityRequest}
@@ -23,6 +25,9 @@ import java.util.UUID
 import scala.io.Source
 
 class Lambda extends RequestStreamHandler {
+  implicit val loggerName: LoggerName = LoggerName("Ingest Upsert Archive Folders")
+  private val logger: SelfAwareStructuredLogger[IO] = Slf4jFactory.create[IO].getLogger
+
   lazy val eventBridgeClient: DAEventBridgeClient[IO] = DAEventBridgeClient[IO]()
 
   lazy val entitiesClientIO: IO[EntityClient[IO, Fs2Streams[IO]]] = configIo.flatMap { config =>
@@ -42,6 +47,7 @@ class Lambda extends RequestStreamHandler {
   override def handleRequest(input: InputStream, output: OutputStream, context: Context): Unit = {
     val rawInput: String = Source.fromInputStream(input).mkString
     val stepFnInput = default.read[StepFnInput](rawInput)
+    val log = logger.info(Map("batchRef" -> stepFnInput.batchId))(_)
 
     val folderIdPartitionKeysAndValues: List[PartitionKey] =
       stepFnInput.archiveHierarchyFolders.map(UUID.fromString).map(PartitionKey)
@@ -68,6 +74,7 @@ class Lambda extends RequestStreamHandler {
         _.entity.isEmpty
       )
       _ <- createFolders(folderInfoOfEntitiesThatDoNotExist, entitiesClient, secretName)
+      _ <- log(s"Created ${folderInfoOfEntitiesThatDoNotExist.length} entities which did not previously exist")
       _ <- verifyEntitiesAreStructuralObjects(folderInfoOfEntitiesThatExist)
 
       folderInfoOfEntitiesThatExistWithSecurityTags <-
@@ -82,7 +89,9 @@ class Lambda extends RequestStreamHandler {
         for {
           identifiersFromPreservica <- entitiesClient.getEntityIdentifiers(entity)
           identifiersToUpdate <- findIdentifiersToUpdate(identifiersFromDynamo, identifiersFromPreservica)
+          _ <- log(s"Found ${identifiersToUpdate.length} identifiers to update")
           identifiersToAdd <- findIdentifiersToAdd(identifiersFromDynamo, identifiersFromPreservica)
+          _ <- log(s"Found ${identifiersToAdd.length} identifiers to add")
           _ <- identifiersToAdd.map { id =>
             entitiesClient.addIdentifierForEntity(entity.ref, entity.entityType.getOrElse(StructuralObject), id)
           }.sequence
@@ -103,12 +112,16 @@ class Lambda extends RequestStreamHandler {
       _ <- folderUpdateRequests.map { folderUpdateRequest =>
         val message = generateTitleDescriptionSlackMessage(config.apiUrl, folderUpdateRequest)
         for {
+          _ <- log(s"Updating entity ${folderUpdateRequest.updateEntityRequest.ref}")
+          _ <- log(s"Sending\n$message\nto slack")
           _ <- entitiesClient.updateEntity(folderUpdateRequest.updateEntityRequest)
           _ <- sendToSlack(message)
         } yield ()
       }.sequence
     } yield ()
-  }.unsafeRunSync()
+  }.onError(logLambdaError).unsafeRunSync()
+
+  private def logLambdaError(error: Throwable): IO[Unit] = logger.error(error)("Error running upsert archive folders lambda")
 
   private def generateIdentifierSlackMessage(
       preservicaUrl: String,
