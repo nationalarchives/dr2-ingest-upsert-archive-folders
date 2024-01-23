@@ -31,3 +31,6 @@ scalacOptions ++= Seq("-Wunused:imports", "-Werror")
   case PathList(ps @ _*) if ps.last == "Log4j2Plugins.dat" => log4j2MergeStrategy
   case _                                                   => MergeStrategy.first
 }
+
+(Test / fork) := true
+(Test / envVars) := Map("AWS_LAMBDA_FUNCTION_NAME" -> "testfunction")
