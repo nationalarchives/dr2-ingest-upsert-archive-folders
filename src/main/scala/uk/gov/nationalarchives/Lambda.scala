@@ -113,9 +113,9 @@ class Lambda extends RequestStreamHandler {
       _ <- folderUpdateRequests.map { folderUpdateRequest =>
         val message = generateTitleDescriptionSlackMessage(config.apiUrl, folderUpdateRequest)
         for {
-          _ <- log(s"Sending\n$message\nto slack")
-          _ <- entitiesClient.updateEntity(folderUpdateRequest.updateEntityRequest)
           _ <- log(s"Updating entity ${folderUpdateRequest.updateEntityRequest.ref}")
+          _ <- entitiesClient.updateEntity(folderUpdateRequest.updateEntityRequest)
+          _ <- log(s"Sending\n$message\nto slack")
           _ <- sendToSlack(message)
         } yield ()
       }.sequence
