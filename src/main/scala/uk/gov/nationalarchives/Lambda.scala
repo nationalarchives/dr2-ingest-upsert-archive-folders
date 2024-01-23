@@ -25,7 +25,7 @@ import java.util.UUID
 import scala.io.Source
 
 class Lambda extends RequestStreamHandler {
-  implicit val loggerName: LoggerName = LoggerName("Ingest Upsert Archive Folders")
+  implicit val loggerName: LoggerName = LoggerName(sys.env("AWS_LAMBDA_FUNCTION_NAME"))
   private val logger: SelfAwareStructuredLogger[IO] = Slf4jFactory.create[IO].getLogger
 
   lazy val eventBridgeClient: DAEventBridgeClient[IO] = DAEventBridgeClient[IO]()
@@ -65,6 +65,7 @@ class Lambda extends RequestStreamHandler {
       entitiesClient <- entitiesClientIO
       secretName = config.secretName
 
+      _ <- log(s"Searching for Source Ids ${folderRowsSortedByParentPath.map(_.name).mkString(",")}")
       potentialEntitiesWithSourceId <- getEntitiesByIdentifier(folderRowsSortedByParentPath, entitiesClient)
       folderIdAndInfo <-
         verifyOnlyOneEntityReturnedAndGetFullFolderInfo(folderRowsSortedByParentPath.zip(potentialEntitiesWithSourceId))
@@ -112,9 +113,9 @@ class Lambda extends RequestStreamHandler {
       _ <- folderUpdateRequests.map { folderUpdateRequest =>
         val message = generateTitleDescriptionSlackMessage(config.apiUrl, folderUpdateRequest)
         for {
-          _ <- log(s"Updating entity ${folderUpdateRequest.updateEntityRequest.ref}")
           _ <- log(s"Sending\n$message\nto slack")
           _ <- entitiesClient.updateEntity(folderUpdateRequest.updateEntityRequest)
+          _ <- log(s"Updating entity ${folderUpdateRequest.updateEntityRequest.ref}")
           _ <- sendToSlack(message)
         } yield ()
       }.sequence
