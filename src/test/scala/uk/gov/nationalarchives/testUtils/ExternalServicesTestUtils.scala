@@ -5,26 +5,29 @@ import cats.effect.unsafe.implicits.global
 import io.circe.Encoder
 import org.mockito.ArgumentCaptor
 import org.mockito.ArgumentMatchers.any
-import org.mockito.MockitoSugar.{mock, times, verify, when}
+import org.mockito.Mockito.{times, verify, when}
 import org.scalatest.flatspec.AnyFlatSpec
-import org.scalatest.matchers.should.Matchers._
+import org.scalatest.matchers.should.Matchers.*
 import org.scalatest.prop.{TableDrivenPropertyChecks, TableFor6}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
+import org.scalatestplus.mockito.MockitoSugar.mock
 import org.scanamo.DynamoFormat
 import software.amazon.awssdk.services.eventbridge.model.PutEventsResponse
 import sttp.capabilities.fs2.Fs2Streams
 import uk.gov.nationalarchives.Lambda.EntityWithUpdateEntityRequest
-import uk.gov.nationalarchives.DynamoFormatters._
+import uk.gov.nationalarchives.DynamoFormatters.*
 import uk.gov.nationalarchives.dp.client.Entities.{Entity, IdentifierResponse}
 import uk.gov.nationalarchives.dp.client.EntityClient
-import uk.gov.nationalarchives.dp.client.EntityClient.{AddEntityRequest, Open, StructuralObject, UpdateEntityRequest}
+import uk.gov.nationalarchives.dp.client.EntityClient.EntityType.*
+import uk.gov.nationalarchives.dp.client.EntityClient.SecurityTag.*
+import uk.gov.nationalarchives.dp.client.EntityClient.{AddEntityRequest, EntityType, UpdateEntityRequest}
 import uk.gov.nationalarchives.{DADynamoDBClient, DAEventBridgeClient, Lambda}
 
-import scala.jdk.CollectionConverters._
+import scala.jdk.CollectionConverters.*
 import java.util.UUID
 import scala.collection.immutable.ListMap
 
-class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with BeforeAndAfterAll with TableDrivenPropertyChecks {
+class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with BeforeAndAfterAll with TableDrivenPropertyChecks:
 
   val folderIdsAndRows: ListMap[UUID, ArchiveFolderDynamoTable] = ListMap(
     UUID.fromString("f0d3d09a-5e3e-42d0-8c0d-3b2202f0e176") ->
@@ -69,7 +72,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
         Some("mock description_1"),
         deleted = false,
         Some(StructuralObject.entityPath),
-        Some(Open),
+        Some(open),
         None
       )
     ),
@@ -81,7 +84,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
         Some("mock description_1_1"),
         deleted = false,
         Some(StructuralObject.entityPath),
-        Some(Open),
+        Some(open),
         Some(UUID.fromString("d7879799-a7de-4aa6-8c7b-afced66a6c50"))
       )
     ),
@@ -93,7 +96,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
         Some("mock description_1_1_1"),
         deleted = false,
         Some(StructuralObject.entityPath),
-        Some(Open),
+        Some(open),
         Some(UUID.fromString("a2d39ea3-6216-4f93-b078-62c7896b174c"))
       )
     )
@@ -221,12 +224,10 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
   private def addIdentifiersDescription(identifiers: List[Identifier]) = identifiersTestDescription(identifiers, "add")
   private def updateIdentifiersDescription(identifiers: List[Identifier]) = identifiersTestDescription(identifiers, "update")
   private def identifiersTestDescription(identifiers: List[Identifier], operation: String) =
-    if (identifiers.isEmpty) {
-      s"not $operation any identifiers"
-    } else {
+    if identifiers.isEmpty then s"not $operation any identifiers"
+    else
       val identifiersString = identifiers.map(i => s"${i.identifierName}=${i.value}").mkString(" ")
       s"add $identifiersString"
-    }
 
   case class MockLambda(
       getAttributeValuesReturnValue: IO[List[ArchiveFolderDynamoTable]],
@@ -239,7 +240,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
       addIdentifierReturnValue: IO[String] = IO("The Identifier was added"),
       updateEntityReturnValues: IO[String] = IO("Entity was updated"),
       getIdentifiersForEntityReturnValues: IO[Seq[IdentifierResponse]] = defaultIdentifiersReturnValue
-  ) extends Lambda() {
+  ) extends Lambda():
     val testEventBridgeClient: DAEventBridgeClient[IO] = mock[DAEventBridgeClient[IO]]
     val eventBridgeMessageCaptors: ArgumentCaptor[Detail] = ArgumentCaptor.forClass(classOf[Detail])
     when(
@@ -247,7 +248,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
         any[String],
         any[String],
         eventBridgeMessageCaptors.capture()
-      )(any[Encoder[Detail]])
+      )(using any[Encoder[Detail]])
     ).thenReturn(IO(PutEventsResponse.builder.build))
     override lazy val eventBridgeClient: DAEventBridgeClient[IO] = testEventBridgeClient
     val apiUrlCaptor: ArgumentCaptor[String] = ArgumentCaptor.forClass(classOf[String])
@@ -255,7 +256,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
     def getAddFolderRequestCaptor: ArgumentCaptor[AddEntityRequest] = ArgumentCaptor.forClass(classOf[AddEntityRequest])
     def getRefCaptor: ArgumentCaptor[UUID] = ArgumentCaptor.forClass(classOf[UUID])
     def structuralObjectCaptor: ArgumentCaptor[StructuralObject.type] =
-      ArgumentCaptor.forClass(classOf[StructuralObject.type])
+      ArgumentCaptor.captor()
     def identifiersToAddCaptor: ArgumentCaptor[Identifier] = ArgumentCaptor.forClass(classOf[Identifier])
     def getUpdateFolderRequestCaptor: ArgumentCaptor[UpdateEntityRequest] =
       ArgumentCaptor.forClass(classOf[UpdateEntityRequest])
@@ -269,9 +270,9 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
     val mockEntityClient: EntityClient[IO, Fs2Streams[IO]] = mock[EntityClient[IO, Fs2Streams[IO]]]
     val mockDynamoDBClient: DADynamoDBClient[IO] = mock[DADynamoDBClient[IO]]
 
-    override val dADynamoDBClient: DADynamoDBClient[IO] = {
+    override val dADynamoDBClient: DADynamoDBClient[IO] =
       when(
-        mockDynamoDBClient.getItems[ArchiveFolderDynamoTable, PartitionKey](any[List[PartitionKey]], any[String])(
+        mockDynamoDBClient.getItems[ArchiveFolderDynamoTable, PartitionKey](any[List[PartitionKey]], any[String])(using
           any[DynamoFormat[ArchiveFolderDynamoTable]],
           any[DynamoFormat[PartitionKey]]
         )
@@ -280,9 +281,8 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
       )
 
       mockDynamoDBClient
-    }
 
-    override lazy val entitiesClientIO: IO[EntityClient[IO, Fs2Streams[IO]]] = {
+    override lazy val entitiesClientIO: IO[EntityClient[IO, Fs2Streams[IO]]] =
       when(mockEntityClient.entitiesByIdentifier(any[Identifier]))
         .thenReturn(
           entitiesWithSourceIdReturnValue.head,
@@ -309,7 +309,6 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
       when(mockEntityClient.updateEntityIdentifiers(any[Entity], any[Seq[IdentifierResponse]]))
         .thenReturn(getIdentifiersForEntityReturnValues)
       IO(mockEntityClient)
-    }
 
     def verifyInvocationsAndArgumentsPassed(
         folderIdsAndRows: Map[UUID, ArchiveFolderDynamoTable],
@@ -317,13 +316,13 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
         addEntityRequests: List[AddEntityRequest] = Nil,
         numOfAddIdentifierRequests: Int = 0,
         updateEntityRequests: List[EntityWithUpdateEntityRequest] = Nil
-    ): Unit = {
+    ): Unit =
       val attributesValuesCaptor = getPartitionKeysCaptor
       val tableNameCaptor = getTableNameCaptor
       verify(mockDynamoDBClient, times(1)).getItems[ArchiveFolderDynamoTable, PartitionKey](
         attributesValuesCaptor.capture(),
         tableNameCaptor.capture()
-      )(any[DynamoFormat[ArchiveFolderDynamoTable]], any[DynamoFormat[PartitionKey]])
+      )(using any[DynamoFormat[ArchiveFolderDynamoTable]], any[DynamoFormat[PartitionKey]])
       attributesValuesCaptor.getValue.toArray.toList should be(
         folderIdsAndRows.map { case (ids, _) => PartitionKey(ids) }
       )
@@ -334,13 +333,12 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
         entitiesByIdentifierIdentifierToGetCaptor.capture()
       )
 
-      if (numOfEntitiesByIdentifierInvocations > 0) {
+      if numOfEntitiesByIdentifierInvocations > 0 then
         val folderRows: Iterator[ArchiveFolderDynamoTable] = folderIdsAndRows.values.iterator
 
         entitiesByIdentifierIdentifierToGetCaptor.getAllValues.toArray.toList should be(
           List.fill(numOfEntitiesByIdentifierInvocations)(Identifier("SourceID", folderRows.next().name))
         )
-      }
 
       val numOfAddEntityInvocations = addEntityRequests.length
       val addEntityAddFolderRequestCaptor = getAddFolderRequestCaptor
@@ -349,9 +347,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
         addEntityAddFolderRequestCaptor.capture()
       )
 
-      if (numOfAddEntityInvocations > 0) {
-        addEntityAddFolderRequestCaptor.getAllValues.toArray.toList should be(addEntityRequests)
-      }
+      if numOfAddEntityInvocations > 0 then addEntityAddFolderRequestCaptor.getAllValues.toArray.toList should be(addEntityRequests)
 
       val addIdentifiersRefCaptor = getRefCaptor
       val addIdentifiersStructuralObjectCaptor = structuralObjectCaptor
@@ -363,7 +359,7 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
         addIdentifiersIdentifiersToAddCaptor.capture()
       )
 
-      if (numOfAddIdentifierRequests > 0) {
+      if numOfAddIdentifierRequests > 0 then
         val numOfAddIdentifierRequestsPerEntity = 2
         addIdentifiersRefCaptor.getAllValues.toArray.toList should be(
           addEntityReturnValues.flatMap { addEntityReturnValue =>
@@ -381,7 +377,6 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
             List(Identifier("SourceID", folderName), Identifier("Code", "code"))
           }
         )
-      }
 
       val numOfUpdateEntityInvocations = updateEntityRequests.length
       val updateEntityUpdateFolderRequestCaptor = getUpdateFolderRequestCaptor
@@ -392,15 +387,13 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
 
       val sentMessages = eventBridgeMessageCaptors.getAllValues.asScala.map(_.slackMessage)
 
-      if (numOfUpdateEntityInvocations > 0) {
+      if numOfUpdateEntityInvocations > 0 then
         updateEntityUpdateFolderRequestCaptor.getAllValues.toArray.toList should be(
           updateEntityRequests.map(_.updateEntityRequest)
         )
-      } else {
-        sentMessages.length should equal(0)
-      }
+      else sentMessages.length should equal(0)
 
-      if (updateEntityReturnValues.attempt.unsafeRunSync().isRight) {
+      if updateEntityReturnValues.attempt.unsafeRunSync().isRight then
         sentMessages.length should equal(updateEntityRequests.size)
         updateEntityRequests.foreach { entityAndUpdateRequest =>
           val updateRequest = entityAndUpdateRequest.updateEntityRequest
@@ -414,22 +407,17 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
           val url = "http://localhost:9001/explorer/explorer.html#properties"
           val messageFirstLine =
             s":preservica: Entity <$url:$entityTypeShort&${entity.ref}|${entity.ref}> has been updated\n"
-          val expectedMessage = if (oldTitle != newTitle && updateRequest.descriptionToChange.isEmpty) {
-            messageFirstLine +
-              s"*Old title*: $oldTitle\n*New title*: $newTitle"
-          } else if (oldTitle == newTitle && updateRequest.descriptionToChange.isDefined) {
-            messageFirstLine +
-              s"*Old description*: $oldDescription\n*New description*: $newDescription"
-          } else {
-            messageFirstLine +
-              s"*Old title*: $oldTitle\n*New title*: $newTitle\n*Old description*: $oldDescription\n*New description*: $newDescription"
-          }
+          val expectedMessage =
+            if oldTitle != newTitle && updateRequest.descriptionToChange.isEmpty then
+              messageFirstLine +
+                s"*Old title*: $oldTitle\n*New title*: $newTitle"
+            else if oldTitle == newTitle && updateRequest.descriptionToChange.isDefined then
+              messageFirstLine +
+                s"*Old description*: $oldDescription\n*New description*: $newDescription"
+            else
+              messageFirstLine +
+                s"*Old title*: $oldTitle\n*New title*: $newTitle\n*Old description*: $oldDescription\n*New description*: $newDescription"
           sentMessages.count(_ == expectedMessage) should equal(1)
         }
-      } else {
-        sentMessages.length should equal(0)
-      }
+      else sentMessages.length should equal(0)
       ()
-    }
-  }
-}
