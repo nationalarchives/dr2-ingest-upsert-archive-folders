@@ -1,8 +1,8 @@
 import sbt._
 object Dependencies {
   private val mockitoScalaVersion = "1.17.30"
-  private val pureConfigVersion = "0.17.5"
-  private val daAwsClientVersion = "0.1.36"
+  private val pureConfigVersion = "0.17.6"
+  private val daAwsClientVersion = "0.1.37"
 
   lazy val awsDynamoDbClient = "uk.gov.nationalarchives" %% "da-dynamodb-client" % daAwsClientVersion
   lazy val awsEventBridgeClient = "uk.gov.nationalarchives" %% "da-eventbridge-client" % daAwsClientVersion
@@ -15,7 +15,7 @@ object Dependencies {
   lazy val lambdaJavaEvents = "com.amazonaws" % "aws-lambda-java-events" % "3.11.4"
   lazy val mockitoScala = "org.mockito" %% "mockito-scala" % mockitoScalaVersion
   lazy val mockitoScalaTest = "org.mockito" %% "mockito-scala-scalatest" % mockitoScalaVersion
-  lazy val preservicaClient = "uk.gov.nationalarchives" %% "preservica-client-fs2" % "0.0.51"
+  lazy val preservicaClient = "uk.gov.nationalarchives" %% "preservica-client-fs2" % "0.0.52"
   lazy val pureConfigCats = "com.github.pureconfig" %% "pureconfig-cats-effect" % pureConfigVersion
   lazy val pureConfig = "com.github.pureconfig" %% "pureconfig" % pureConfigVersion
   lazy val scalaTest = "org.scalatest" %% "scalatest" % "3.2.18"
