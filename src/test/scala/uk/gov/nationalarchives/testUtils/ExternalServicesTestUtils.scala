@@ -413,16 +413,13 @@ class ExternalServicesTestUtils extends AnyFlatSpec with BeforeAndAfterEach with
           val entityTypeShort = entity.entityType.get.entityTypeShort
           val url = "http://localhost:9001/explorer/explorer.html#properties"
           val messageFirstLine =
-            s":preservica: Entity <$url:$entityTypeShort&${entity.ref}|${entity.ref}> has been updated\n"
+            s":preservica: Entity <$url:$entityTypeShort&${entity.ref}|${entity.ref}> has been updated: "
           val expectedMessage = if (oldTitle != newTitle && updateRequest.descriptionToChange.isEmpty) {
-            messageFirstLine +
-              s"*Old title*: $oldTitle\n*New title*: $newTitle"
+            messageFirstLine + "*Title has changed*"
           } else if (oldTitle == newTitle && updateRequest.descriptionToChange.isDefined) {
-            messageFirstLine +
-              s"*Old description*: $oldDescription\n*New description*: $newDescription"
+            messageFirstLine + "*Description has changed*"
           } else {
-            messageFirstLine +
-              s"*Old title*: $oldTitle\n*New title*: $newTitle\n*Old description*: $oldDescription\n*New description*: $newDescription"
+            messageFirstLine + "*Title has changed and Description has changed*"
           }
           sentMessages.count(_ == expectedMessage) should equal(1)
         }
